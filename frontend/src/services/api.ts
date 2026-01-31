@@ -133,4 +133,20 @@ export const admin = {
   getHealth: () => api.get('/admin/health'),
 };
 
+// Onboarding
+export const onboarding = {
+  getStatus: () => api.get('/onboarding/status'),
+  saveProfile: (data: { heightCm?: number; weight?: number; fitnessGoal?: string; experienceLevel?: string }) =>
+    api.post('/onboarding/profile', data),
+  complete: (data: { workoutsSetup?: boolean; menuSetup?: boolean }) =>
+    api.post('/onboarding/complete', data),
+  getSchedule: () => api.get('/onboarding/schedule'),
+  setScheduleDay: (data: { dayOfWeek: number; name: string; planId?: string; isRestDay?: boolean; notes?: string }) =>
+    api.post('/onboarding/schedule', data),
+  deleteScheduleDay: (dayOfWeek: number) =>
+    api.delete(`/onboarding/schedule/${dayOfWeek}`),
+  requestAiRecommendation: (type: string, existingData?: unknown) =>
+    api.post('/onboarding/ai-recommend', { type, existingData }),
+};
+
 export default api;

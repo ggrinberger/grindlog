@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { workouts } from '../services/api';
+import { workouts, onboarding } from '../services/api';
 
 interface Session {
   id: string;
@@ -17,30 +17,48 @@ interface Exercise {
   muscle_group: string;
 }
 
+interface ScheduleDay {
+  id: string;
+  day_of_week: number;
+  name: string;
+  plan_id: string | null;
+  plan_name: string | null;
+  is_rest_day: boolean;
+}
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const TODAY = new Date().getDay();
+
 export default function Workouts() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewSession, setShowNewSession] = useState(false);
   const [sessionName, setSessionName] = useState('');
+  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [editDayName, setEditDayName] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [sessionsRes, exercisesRes] = await Promise.all([
-          workouts.getSessions(),
-          workouts.getExercises(),
-        ]);
-        setSessions(sessionsRes.data);
-        setExercises(exercisesRes.data);
-      } catch (error) {
-        console.error('Failed to fetch workouts:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
+
+  const fetchData = async () => {
+    try {
+      const [sessionsRes, exercisesRes, scheduleRes] = await Promise.all([
+        workouts.getSessions(),
+        workouts.getExercises(),
+        onboarding.getSchedule(),
+      ]);
+      setSessions(sessionsRes.data);
+      setExercises(exercisesRes.data);
+      setSchedule(scheduleRes.data);
+    } catch (error) {
+      console.error('Failed to fetch workouts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const startSession = async () => {
     try {
@@ -64,26 +82,93 @@ export default function Workouts() {
     }
   };
 
+  const startTodayWorkout = () => {
+    const todaySchedule = schedule.find(s => s.day_of_week === TODAY);
+    if (todaySchedule && !todaySchedule.is_rest_day) {
+      setSessionName(todaySchedule.name);
+      setShowNewSession(true);
+    } else {
+      setShowNewSession(true);
+    }
+  };
+
+  const saveScheduleDay = async (dayOfWeek: number) => {
+    try {
+      await onboarding.setScheduleDay({
+        dayOfWeek,
+        name: editDayName,
+        isRestDay: editDayName.toLowerCase() === 'rest',
+      });
+      fetchData();
+      setEditingDay(null);
+      setEditDayName('');
+    } catch (error) {
+      console.error('Failed to save schedule:', error);
+    }
+  };
+
+  const getScheduleForDay = (day: number) => {
+    return schedule.find(s => s.day_of_week === day);
+  };
+
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>;
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 skeleton rounded-lg"></div>
+        <div className="h-32 skeleton rounded-2xl"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-64 skeleton rounded-2xl"></div>
+          <div className="h-64 skeleton rounded-2xl"></div>
+        </div>
+      </div>
+    );
   }
+
+  const todaySchedule = getScheduleForDay(TODAY);
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Workouts</h1>
-        <button onClick={() => setShowNewSession(true)} className="btn-primary">
-          + New Workout
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Workouts</h1>
+          <p className="text-slate-500 mt-1">Track your training sessions</p>
+        </div>
+        <button onClick={startTodayWorkout} className="btn-primary">
+          + Start Workout
         </button>
+      </div>
+
+      {/* Today's Workout Banner */}
+      <div className={`card ${todaySchedule?.is_rest_day ? 'bg-blue-50 border-blue-200' : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-0'}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className={`text-sm font-medium ${todaySchedule?.is_rest_day ? 'text-blue-600' : 'text-emerald-100'}`}>
+              Today • {DAYS[TODAY]}
+            </div>
+            <div className={`text-2xl font-bold ${todaySchedule?.is_rest_day ? 'text-blue-900' : 'text-white'}`}>
+              {todaySchedule 
+                ? (todaySchedule.is_rest_day ? '😴 Rest Day' : todaySchedule.name)
+                : 'No workout scheduled'}
+            </div>
+          </div>
+          {todaySchedule && !todaySchedule.is_rest_day && (
+            <button
+              onClick={startTodayWorkout}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl font-medium transition-all"
+            >
+              Start Now →
+            </button>
+          )}
+        </div>
       </div>
 
       {showNewSession && (
         <div className="card">
-          <h3 className="font-semibold mb-4">Start New Workout</h3>
+          <h3 className="font-semibold text-slate-900 mb-4">Start New Workout</h3>
           <div className="flex gap-4">
             <input
               type="text"
-              placeholder="Workout name (optional)"
+              placeholder="Workout name"
               value={sessionName}
               onChange={(e) => setSessionName(e.target.value)}
               className="input flex-1"
@@ -94,30 +179,107 @@ export default function Workouts() {
         </div>
       )}
 
+      {/* Weekly Schedule */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">Weekly Schedule</h2>
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {DAYS.map((day, index) => {
+            const daySchedule = getScheduleForDay(index);
+            const isToday = index === TODAY;
+            
+            return (
+              <div
+                key={day}
+                className={`p-3 rounded-xl text-center transition-all ${
+                  isToday
+                    ? 'bg-emerald-100 border-2 border-emerald-500'
+                    : daySchedule?.is_rest_day
+                    ? 'bg-blue-50 border border-blue-200'
+                    : daySchedule
+                    ? 'bg-slate-50 border border-slate-200'
+                    : 'bg-slate-50 border border-dashed border-slate-300'
+                }`}
+              >
+                <div className={`text-xs font-medium mb-1 ${isToday ? 'text-emerald-700' : 'text-slate-500'}`}>
+                  {day.slice(0, 3)}
+                </div>
+                {editingDay === index ? (
+                  <div className="space-y-1">
+                    <input
+                      type="text"
+                      value={editDayName}
+                      onChange={(e) => setEditDayName(e.target.value)}
+                      className="w-full text-xs px-2 py-1 border rounded"
+                      placeholder="Workout name"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveScheduleDay(index);
+                        if (e.key === 'Escape') setEditingDay(null);
+                      }}
+                    />
+                    <button
+                      onClick={() => saveScheduleDay(index)}
+                      className="text-xs text-emerald-600 hover:text-emerald-700"
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEditingDay(index);
+                      setEditDayName(daySchedule?.name || '');
+                    }}
+                    className="w-full"
+                  >
+                    {daySchedule ? (
+                      <div className={`text-sm font-medium ${
+                        daySchedule.is_rest_day ? 'text-blue-600' : 'text-slate-900'
+                      }`}>
+                        {daySchedule.is_rest_day ? '😴' : daySchedule.name}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-400 hover:text-slate-600">+ Add</div>
+                    )}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Sessions */}
         <div className="card">
-          <h2 className="text-lg font-semibold mb-4">Recent Sessions</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Sessions</h2>
           {sessions.length === 0 ? (
-            <p className="text-gray-500">No workouts yet. Start your first one!</p>
+            <div className="empty-state py-8">
+              <div className="empty-state-icon">🏋️</div>
+              <div className="empty-state-title">No workouts yet</div>
+              <div className="empty-state-text">Start your first workout!</div>
+            </div>
           ) : (
             <div className="space-y-3">
               {sessions.slice(0, 10).map((session) => (
-                <div key={session.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div key={session.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
                   <div>
-                    <div className="font-medium">{session.name || session.plan_name || 'Workout'}</div>
-                    <div className="text-sm text-gray-500">
+                    <div className="font-medium text-slate-900">{session.name || session.plan_name || 'Workout'}</div>
+                    <div className="text-sm text-slate-500">
                       {new Date(session.started_at).toLocaleDateString()} • {session.exercise_count} exercises
                     </div>
                   </div>
                   {!session.ended_at ? (
                     <button
                       onClick={() => endSession(session.id)}
-                      className="text-sm bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full"
+                      className="badge badge-emerald"
                     >
                       End Session
                     </button>
                   ) : (
-                    <span className="text-sm text-gray-400">Completed</span>
+                    <span className="badge badge-gray">Completed</span>
                   )}
                 </div>
               ))}
@@ -125,17 +287,23 @@ export default function Workouts() {
           )}
         </div>
 
+        {/* Exercise Library */}
         <div className="card">
-          <h2 className="text-lg font-semibold mb-4">Exercise Library</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Exercise Library</h2>
           {exercises.length === 0 ? (
-            <p className="text-gray-500">No exercises yet.</p>
+            <div className="empty-state py-8">
+              <div className="empty-state-icon">📚</div>
+              <div className="empty-state-title">No exercises yet</div>
+              <div className="empty-state-text">Exercises will appear here</div>
+            </div>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {exercises.map((exercise) => (
-                <div key={exercise.id} className="p-2 hover:bg-gray-50 rounded">
-                  <div className="font-medium">{exercise.name}</div>
-                  <div className="text-sm text-gray-500">
-                    {exercise.category} {exercise.muscle_group && `• ${exercise.muscle_group}`}
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {exercises.slice(0, 20).map((exercise) => (
+                <div key={exercise.id} className="p-3 hover:bg-slate-50 rounded-xl transition-colors">
+                  <div className="font-medium text-slate-900">{exercise.name}</div>
+                  <div className="text-sm text-slate-500">
+                    {exercise.category}
+                    {exercise.muscle_group && ` • ${exercise.muscle_group}`}
                   </div>
                 </div>
               ))}
