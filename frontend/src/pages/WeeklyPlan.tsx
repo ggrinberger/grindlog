@@ -333,15 +333,15 @@ export default function WeeklyPlan() {
         {/* Day's Cardio */}
         {dayCardio && (
           <div className="card bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-red-500">❤️</span>
+                  <span className="text-red-500 flex-shrink-0">❤️</span>
                   <span className="font-semibold text-red-700 dark:text-red-400">{dayCardio.name}</span>
                 </div>
                 <div className="text-sm text-red-600 dark:text-red-400 mt-1">{dayCardio.description}</div>
               </div>
-              <Link to="/cardio" className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium">
+              <Link to="/cardio" className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium whitespace-nowrap flex-shrink-0">
                 View Protocol →
               </Link>
             </div>
@@ -524,12 +524,12 @@ export default function WeeklyPlan() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3">
-                <button onClick={logExercise} className="btn-primary flex-1" disabled={savingExercise}>
-                  {savingExercise ? 'Saving...' : 'Save & Complete ✓'}
-                </button>
-                <button onClick={() => setEditingExercise(null)} className="btn-secondary" disabled={savingExercise}>
+              <div className="flex flex-col-reverse sm:flex-row gap-3">
+                <button onClick={() => setEditingExercise(null)} className="btn-secondary flex-1 sm:flex-none" disabled={savingExercise}>
                   Cancel
+                </button>
+                <button onClick={logExercise} className="btn-primary flex-1 whitespace-nowrap" disabled={savingExercise}>
+                  {savingExercise ? 'Saving...' : 'Complete ✓'}
                 </button>
               </div>
             </div>
@@ -619,15 +619,15 @@ export default function WeeklyPlan() {
           {/* Day's Cardio Protocol */}
           {getCardioForDay(expandedDay) && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-red-500">❤️</span>
+                    <span className="text-red-500 flex-shrink-0">❤️</span>
                     <span className="font-semibold text-red-700 dark:text-red-400">{getCardioForDay(expandedDay)!.name}</span>
                   </div>
                   <div className="text-sm text-red-600 dark:text-red-400 mt-1">{getCardioForDay(expandedDay)!.description}</div>
                 </div>
-                <Link to="/cardio" className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium">
+                <Link to="/cardio" className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium whitespace-nowrap flex-shrink-0">
                   Full Details →
                 </Link>
               </div>
