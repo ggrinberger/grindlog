@@ -12,7 +12,7 @@ const router = Router();
 // Get user's nutrition targets
 router.get('/targets', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    let result = await query(
+    const result = await query(
       `SELECT * FROM nutrition_targets WHERE user_id = $1 AND is_active = true`,
       [req.user!.id]
     );
@@ -283,7 +283,7 @@ router.get('/summary/daily', authenticate, async (req: AuthRequest, res: Respons
     );
     
     // Get targets
-    let targetsResult = await query(
+    const targetsResult = await query(
       `SELECT * FROM nutrition_targets WHERE user_id = $1 AND is_active = true`,
       [req.user!.id]
     );
