@@ -549,8 +549,34 @@ export default function WeeklyPlan() {
         </div>
       </div>
 
-      {/* Week Overview */}
-      <div className="grid grid-cols-7 gap-2">
+      {/* Week Overview - Mobile Dropdown */}
+      <div className="sm:hidden">
+        <select
+          value={expandedDay ?? ''}
+          onChange={(e) => setExpandedDay(e.target.value === '' ? null : parseInt(e.target.value))}
+          className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium text-base focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+        >
+          <option value="">Select a day...</option>
+          {[0, 1, 2, 3, 4, 5, 6].map((day) => {
+            const dayName = dayNames[day] || '';
+            const isToday = day === TODAY;
+            const hasWorkout = weeklyPlan[day] && weeklyPlan[day].length > 0;
+            const dayCardio = getCardioForDay(day);
+            const exerciseCount = hasWorkout ? weeklyPlan[day].filter(e => !e.section || e.section === null).length : 0;
+            
+            return (
+              <option key={day} value={day}>
+                {DAY_LABELS[day]}{isToday ? ' (Today)' : ''} — {dayName.split(':')[1]?.trim() || dayName.split(':')[0] || 'Rest'}
+                {hasWorkout ? ` • ${exerciseCount} ex` : ''}
+                {dayCardio ? ' ❤️' : ''}
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
+      {/* Week Overview - Desktop Buttons */}
+      <div className="hidden sm:grid grid-cols-7 gap-2">
         {[0, 1, 2, 3, 4, 5, 6].map((day) => {
           const dayName = dayNames[day] || '';
           const isToday = day === TODAY;
@@ -596,24 +622,24 @@ export default function WeeklyPlan() {
       {/* Expanded Day Details */}
       {expandedDay !== null && weeklyPlan[expandedDay] && weeklyPlan[expandedDay].length > 0 && (
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">{dayNames[expandedDay]}</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {weeklyPlan[expandedDay].length} total exercises
-              </p>
-            </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
-              <div className={`px-3 py-1 rounded-full ${getColorForDay(dayNames[expandedDay]).bg} ${getColorForDay(dayNames[expandedDay]).text} text-sm font-medium`}>
+              <div className={`px-3 py-1 rounded-full ${getColorForDay(dayNames[expandedDay]).bg} ${getColorForDay(dayNames[expandedDay]).text} text-sm font-medium hidden sm:block`}>
                 {DAY_LABELS[expandedDay]}
               </div>
-              <button
-                onClick={() => startWorkout(expandedDay)}
-                className="btn-primary"
-              >
-                Start Workout →
-              </button>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">{dayNames[expandedDay]}</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {weeklyPlan[expandedDay].length} total exercises
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => startWorkout(expandedDay)}
+              className="btn-primary w-full sm:w-auto"
+            >
+              Start Workout →
+            </button>
           </div>
 
           {/* Day's Cardio Protocol */}
