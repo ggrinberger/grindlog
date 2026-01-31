@@ -458,7 +458,7 @@ export default function Progress() {
                       tick={{ fill: chartColors.text, fontSize: 12 }}
                       axisLine={{ stroke: chartColors.grid }}
                       unit={historyExercise.is_cardio ? ' min' : ' kg'}
-                      domain={[(dataMin: number) => Math.floor(dataMin * 0.9), (dataMax: number) => Math.ceil(dataMax * 1.1)]}
+                      domain={['dataMin - 2', 'dataMax + 2']}
                     />
                     <Tooltip content={<CustomTooltip isCardio={historyExercise.is_cardio} />} />
                     <Area 
