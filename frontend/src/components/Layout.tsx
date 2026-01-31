@@ -33,8 +33,7 @@ export default function Layout() {
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: '📊', mobileLabel: 'Home' },
-    { to: '/workouts', label: 'My Schedule', icon: '🏋️', mobileLabel: 'Workout' },
-    { to: '/weekly-plan', label: 'Training Plan', icon: '📋', mobileLabel: 'Plan' },
+    { to: '/weekly-plan', label: 'Training Plan', icon: '🏋️', mobileLabel: 'Train' },
     { to: '/routines', label: 'Routines', icon: '☀️', mobileLabel: 'Routines' },
     { to: '/cardio', label: 'Cardio', icon: '❤️', mobileLabel: 'Cardio' },
     { to: '/nutrition', label: 'Nutrition', icon: '🥗', mobileLabel: 'Food' },
