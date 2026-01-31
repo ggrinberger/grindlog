@@ -411,10 +411,10 @@ export default function Workouts() {
 
                   {/* Exercise Info */}
                   <div className="flex-1">
-                    <div className={`font-medium ${isCompleted ? 'text-emerald-700 line-through' : 'text-slate-900'}`}>
+                    <div className={`font-medium ${isCompleted ? 'text-emerald-700 line-through' : 'text-slate-900 dark:text-white'}`}>
                       {ex.exercise_name}
                     </div>
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       {ex.is_cardio ? (
                         <>
                           {formatDuration(ex.duration_seconds)}
@@ -460,13 +460,13 @@ export default function Workouts() {
         {loggingExercise && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 max-w-md w-full">
-              <h3 className="text-lg font-semibold text-slate-900 mb-1">Log Exercise</h3>
-              <p className="text-slate-500 mb-4">{loggingExercise.exercise.exercise_name}</p>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Log Exercise</h3>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">{loggingExercise.exercise.exercise_name}</p>
               
               {/* Planned values display */}
-              <div className="bg-slate-50 rounded-xl p-4 mb-4">
-                <div className="text-sm text-slate-500 mb-1">Planned</div>
-                <div className="font-medium text-slate-900">
+              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+                <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Planned</div>
+                <div className="font-medium text-slate-900 dark:text-white">
                   {loggingExercise.exercise.is_cardio ? (
                     <>
                       {formatDuration(loggingExercise.exercise.duration_seconds)}
@@ -489,7 +489,7 @@ export default function Workouts() {
                   className={`flex-1 py-2 px-4 rounded-xl font-medium transition-all ${
                     loggingExercise.usePlanned
                       ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Use Planned
@@ -499,7 +499,7 @@ export default function Workouts() {
                   className={`flex-1 py-2 px-4 rounded-xl font-medium transition-all ${
                     !loggingExercise.usePlanned
                       ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Log Different
@@ -606,7 +606,7 @@ export default function Workouts() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Weekly Training</h1>
-          <p className="text-slate-500 mt-1">Plan your workout week</p>
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Plan your workout week</p>
         </div>
       </div>
 
@@ -664,13 +664,13 @@ export default function Workouts() {
                       ? 'bg-emerald-500 text-white' 
                       : daySchedule?.is_rest_day 
                         ? 'bg-blue-100 text-blue-600'
-                        : 'bg-slate-100 text-slate-600'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600'
                   }`}>
                     {dayName.slice(0, 2)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`font-medium ${isToday ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      <span className={`font-medium ${isToday ? 'text-emerald-600' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
                         {dayName}
                       </span>
                       {isToday && (
@@ -688,14 +688,14 @@ export default function Workouts() {
                         }}
                         onBlur={() => saveDayName(dayIndex)}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-lg font-semibold bg-white border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        className="text-lg font-semibold bg-white border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         placeholder="Workout name"
                         autoFocus
                       />
                     ) : (
                       <div
                         className={`text-lg font-semibold ${
-                          daySchedule?.is_rest_day ? 'text-blue-600' : 'text-slate-900'
+                          daySchedule?.is_rest_day ? 'text-blue-600' : 'text-slate-900 dark:text-white'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -705,7 +705,7 @@ export default function Workouts() {
                       >
                         {daySchedule 
                           ? (daySchedule.is_rest_day ? '😴 Rest Day' : daySchedule.name)
-                          : <span className="text-slate-400 text-base">Click to set workout...</span>
+                          : <span className="text-slate-400 dark:text-slate-500 text-base">Click to set workout...</span>
                         }
                       </div>
                     )}
@@ -723,13 +723,13 @@ export default function Workouts() {
                       >
                         Start
                       </button>
-                      <span className="text-sm text-slate-500">
+                      <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                         {daySchedule.exercises.length} exercise{daySchedule.exercises.length !== 1 ? 's' : ''}
                       </span>
                     </>
                   )}
                   <svg
-                    className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 text-slate-400 dark:text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -741,14 +741,14 @@ export default function Workouts() {
 
               {/* Expanded Content */}
               {isExpanded && !daySchedule?.is_rest_day && (
-                <div className="mt-4 pt-4 border-t border-slate-100">
+                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                   {/* Exercises List */}
                   {daySchedule?.exercises && daySchedule.exercises.length > 0 ? (
                     <div className="space-y-2 mb-4">
                       {daySchedule.exercises.map((ex, idx) => (
                         <div
                           key={ex.id}
-                          className={`flex items-center gap-3 p-3 bg-slate-50 rounded-xl group transition-all ${
+                          className={`flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl group transition-all ${
                             draggedExercise === ex.id ? 'opacity-50' : ''
                           }`}
                           draggable
@@ -757,7 +757,7 @@ export default function Workouts() {
                           onDrop={(e) => handleDrop(e, ex.id, dayIndex)}
                         >
                           {/* Drag Handle */}
-                          <div className="cursor-grab text-slate-300 hover:text-slate-500">
+                          <div className="cursor-grab text-slate-300 hover:text-slate-500 dark:text-slate-400 dark:text-slate-500">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                             </svg>
@@ -770,8 +770,8 @@ export default function Workouts() {
 
                           {/* Exercise Info */}
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-slate-900 truncate">{ex.exercise_name}</div>
-                            <div className="text-xs text-slate-500">{ex.muscle_group || ex.category}</div>
+                            <div className="font-medium text-slate-900 dark:text-white truncate">{ex.exercise_name}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{ex.muscle_group || ex.category}</div>
                           </div>
 
                           {/* Sets/Reps/Weight for strength OR Duration/Intervals for cardio */}
@@ -783,21 +783,21 @@ export default function Workouts() {
                                     type="text"
                                     defaultValue={ex.duration_seconds ? `${Math.floor(ex.duration_seconds / 60)}` : ''}
                                     placeholder="30"
-                                    className="w-14 text-center text-sm border border-slate-200 rounded-lg px-2 py-1"
+                                    className="w-14 text-center text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1"
                                     onBlur={(e) => updateExercise(ex.id, { durationSeconds: parseDuration(e.target.value) })}
                                   />
-                                  <span className="text-xs text-slate-400">min</span>
+                                  <span className="text-xs text-slate-400 dark:text-slate-500">min</span>
                                   {(ex.intervals && ex.intervals > 1) || ex.category?.toLowerCase().includes('interval') || ex.category?.toLowerCase().includes('hiit') ? (
                                     <>
-                                      <span className="text-slate-400 mx-1">×</span>
+                                      <span className="text-slate-400 dark:text-slate-500 mx-1">×</span>
                                       <input
                                         type="number"
                                         defaultValue={ex.intervals || 1}
                                         min={1}
-                                        className="w-12 text-center text-sm border border-slate-200 rounded-lg px-2 py-1"
+                                        className="w-12 text-center text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1"
                                         onBlur={(e) => updateExercise(ex.id, { intervals: parseInt(e.target.value) || 1 })}
                                       />
-                                      <span className="text-xs text-slate-400">intervals</span>
+                                      <span className="text-xs text-slate-400 dark:text-slate-500">intervals</span>
                                     </>
                                   ) : null}
                                 </>
@@ -807,26 +807,26 @@ export default function Workouts() {
                                     type="number"
                                     defaultValue={ex.sets}
                                     min={1}
-                                    className="w-14 text-center text-sm border border-slate-200 rounded-lg px-2 py-1"
+                                    className="w-14 text-center text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1"
                                     onBlur={(e) => updateExercise(ex.id, { sets: parseInt(e.target.value) || ex.sets })}
                                   />
-                                  <span className="text-slate-400">×</span>
+                                  <span className="text-slate-400 dark:text-slate-500">×</span>
                                   <input
                                     type="number"
                                     defaultValue={ex.reps}
                                     min={1}
-                                    className="w-14 text-center text-sm border border-slate-200 rounded-lg px-2 py-1"
+                                    className="w-14 text-center text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1"
                                     onBlur={(e) => updateExercise(ex.id, { reps: parseInt(e.target.value) || ex.reps })}
                                   />
-                                  <span className="text-slate-400">@</span>
+                                  <span className="text-slate-400 dark:text-slate-500">@</span>
                                   <input
                                     type="number"
                                     defaultValue={ex.weight || ''}
                                     placeholder="—"
-                                    className="w-16 text-center text-sm border border-slate-200 rounded-lg px-2 py-1"
+                                    className="w-16 text-center text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1"
                                     onBlur={(e) => updateExercise(ex.id, { weight: parseFloat(e.target.value) || undefined })}
                                   />
-                                  <span className="text-xs text-slate-400">kg</span>
+                                  <span className="text-xs text-slate-400 dark:text-slate-500">kg</span>
                                 </>
                               )}
                               <button
@@ -842,14 +842,14 @@ export default function Workouts() {
                                 e.stopPropagation();
                                 setEditingExercise(ex.id);
                               }}
-                              className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 bg-white px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-all"
+                              className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 dark:text-white bg-white px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition-all"
                             >
                               {ex.is_cardio ? (
                                 <>
                                   <span className="font-medium">{formatDuration(ex.duration_seconds)}</span>
                                   {ex.intervals && ex.intervals > 1 && (
                                     <>
-                                      <span className="text-slate-400 ml-1">×</span>
+                                      <span className="text-slate-400 dark:text-slate-500 ml-1">×</span>
                                       <span className="font-medium">{ex.intervals}</span>
                                     </>
                                   )}
@@ -857,11 +857,11 @@ export default function Workouts() {
                               ) : (
                                 <>
                                   <span className="font-medium">{ex.sets}</span>
-                                  <span className="text-slate-400">×</span>
+                                  <span className="text-slate-400 dark:text-slate-500">×</span>
                                   <span className="font-medium">{ex.reps}</span>
                                   {ex.weight && (
                                     <>
-                                      <span className="text-slate-400 ml-1">@</span>
+                                      <span className="text-slate-400 dark:text-slate-500 ml-1">@</span>
                                       <span className="font-medium">{ex.weight}kg</span>
                                     </>
                                   )}
@@ -886,7 +886,7 @@ export default function Workouts() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-6 text-slate-400 mb-4">
+                    <div className="text-center py-6 text-slate-400 dark:text-slate-500 mb-4">
                       No exercises added yet
                     </div>
                   )}
@@ -909,21 +909,21 @@ export default function Workouts() {
                         }}
                       />
                       {exerciseSearch && (
-                        <div className="absolute z-10 w-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 max-h-64 overflow-y-auto">
+                        <div className="absolute z-10 w-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 max-h-64 overflow-y-auto">
                           {filteredExercises.length === 0 ? (
-                            <div className="p-4 text-center text-slate-500">No exercises found</div>
+                            <div className="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">No exercises found</div>
                           ) : (
                             filteredExercises.slice(0, 10).map((ex) => (
                               <button
                                 key={ex.id}
                                 onClick={() => addExerciseToDay(dayIndex, ex)}
-                                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0"
+                                className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 dark:bg-slate-800/50 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
                               >
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium text-slate-900">{ex.name}</span>
+                                  <span className="font-medium text-slate-900 dark:text-white">{ex.name}</span>
                                   {ex.is_cardio && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">Cardio</span>}
                                 </div>
-                                <div className="text-sm text-slate-500">
+                                <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                   {ex.category}
                                   {ex.muscle_group && ` • ${ex.muscle_group}`}
                                 </div>
@@ -937,7 +937,7 @@ export default function Workouts() {
                           setShowExerciseSearch(null);
                           setExerciseSearch('');
                         }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -947,7 +947,7 @@ export default function Workouts() {
                   ) : (
                     <button
                       onClick={() => setShowExerciseSearch(dayIndex)}
-                      className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 hover:border-emerald-300 hover:text-emerald-600 transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:border-emerald-300 hover:text-emerald-600 transition-all flex items-center justify-center gap-2"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -987,13 +987,13 @@ export default function Workouts() {
       {/* Recent Sessions */}
       {sessions.length > 0 && (
         <div className="card">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Sessions</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Recent Sessions</h2>
           <div className="space-y-3">
             {sessions.slice(0, 5).map((session) => (
-              <div key={session.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+              <div key={session.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
                 <div>
-                  <div className="font-medium text-slate-900">{session.name || session.plan_name || 'Workout'}</div>
-                  <div className="text-sm text-slate-500">
+                  <div className="font-medium text-slate-900 dark:text-white">{session.name || session.plan_name || 'Workout'}</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     {new Date(session.started_at).toLocaleDateString()} • {session.exercise_count} exercises
                   </div>
                 </div>

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { progress, workouts } from '../services/api';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { useThemeStore } from '../store/themeStore';
 
 interface Measurement {
   id: string;
@@ -53,6 +55,7 @@ interface HistoryEntry {
 }
 
 export default function Progress() {
+  const { isDark } = useThemeStore();
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -73,6 +76,16 @@ export default function Progress() {
     distanceKm: '',
   });
   const [activeTab, setActiveTab] = useState<'body' | 'exercises'>('exercises');
+
+  // Chart colors based on theme
+  const chartColors = {
+    primary: '#10b981',
+    secondary: '#8b5cf6',
+    grid: isDark ? '#334155' : '#e2e8f0',
+    text: isDark ? '#94a3b8' : '#64748b',
+    background: isDark ? '#1e293b' : '#f8fafc',
+    tooltipBg: isDark ? '#0f172a' : '#ffffff',
+  };
 
   useEffect(() => {
     fetchData();
@@ -153,49 +166,54 @@ export default function Progress() {
     return secs > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${mins} min`;
   };
 
-  // Simple chart rendering using CSS
-  const renderChart = (data: HistoryEntry[], isCardio: boolean) => {
-    if (data.length === 0) return null;
-    
-    const values = isCardio
-      ? data.map(d => d.duration_seconds || 0)
-      : data.map(d => d.weight || 0);
-    
-    const maxVal = Math.max(...values);
-    const minVal = Math.min(...values.filter(v => v > 0));
-    const range = maxVal - minVal || 1;
+  // Format chart data for exercise history
+  const getChartData = (data: HistoryEntry[], isCardio: boolean) => {
+    return data.map(entry => ({
+      date: new Date(entry.logged_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: isCardio ? Math.round((entry.duration_seconds || 0) / 60) : entry.weight || 0,
+      fullDate: new Date(entry.logged_at).toLocaleDateString(),
+    }));
+  };
 
-    return (
-      <div className="mt-4">
-        <div className="flex items-end gap-1 h-32 bg-slate-50 rounded-xl p-3">
-          {data.slice(-20).map((entry) => {
-            const value = isCardio ? (entry.duration_seconds || 0) : (entry.weight || 0);
-            const height = ((value - minVal) / range) * 100 + 10;
-            return (
-              <div
-                key={entry.id}
-                className="flex-1 min-w-2 bg-emerald-500 rounded-t hover:bg-emerald-600 transition-colors relative group"
-                style={{ height: `${height}%` }}
-              >
-                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">
-                  {isCardio ? formatDuration(entry.duration_seconds) : `${entry.weight}kg`}
-                  <br />
-                  <span className="text-slate-300">{new Date(entry.logged_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-            );
-          })}
+  // Format weight chart data
+  const getWeightChartData = () => {
+    return measurements
+      .filter(m => m.weight)
+      .slice(0, 30)
+      .reverse()
+      .map(m => ({
+        date: new Date(m.measured_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        weight: m.weight,
+        bodyFat: m.body_fat_percentage,
+        fullDate: new Date(m.measured_at).toLocaleDateString(),
+      }));
+  };
+
+  // Custom tooltip
+  const CustomTooltip = ({ active, payload, label, isCardio }: { active?: boolean; payload?: Array<{ value: number }>; label?: string; isCardio?: boolean }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className={`px-3 py-2 rounded-lg shadow-lg border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+          <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            {isCardio ? `${payload[0].value} min` : `${payload[0].value} kg`}
+          </p>
+          <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</p>
         </div>
-        <div className="flex justify-between text-xs text-slate-400 mt-1">
-          <span>{data.length > 0 ? new Date(data[0].logged_at).toLocaleDateString() : ''}</span>
-          <span>{data.length > 0 ? new Date(data[data.length - 1].logged_at).toLocaleDateString() : ''}</span>
-        </div>
-      </div>
-    );
+      );
+    }
+    return null;
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>;
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 skeleton rounded-lg"></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => <div key={i} className="h-32 skeleton rounded-2xl"></div>)}
+        </div>
+        <div className="h-64 skeleton rounded-2xl"></div>
+      </div>
+    );
   }
 
   const latestWeight = measurements.find(m => m.weight)?.weight;
@@ -205,7 +223,10 @@ export default function Progress() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Progress</h1>
+        <div>
+          <h1 className="page-title">Progress</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Track your fitness journey</p>
+        </div>
         <div className="flex gap-2">
           <button onClick={() => setShowLogProgress(true)} className="btn-primary">
             + Log Exercise
@@ -217,23 +238,23 @@ export default function Progress() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200">
+      <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
         <button
           onClick={() => setActiveTab('exercises')}
-          className={`px-4 py-2 font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
             activeTab === 'exercises'
-              ? 'text-emerald-600 border-b-2 border-emerald-600'
-              : 'text-slate-500 hover:text-slate-700'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           Exercise Progress
         </button>
         <button
           onClick={() => setActiveTab('body')}
-          className={`px-4 py-2 font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
             activeTab === 'body'
-              ? 'text-emerald-600 border-b-2 border-emerald-600'
-              : 'text-slate-500 hover:text-slate-700'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           Body Measurements
@@ -242,8 +263,8 @@ export default function Progress() {
 
       {/* Log Exercise Progress Modal */}
       {showLogProgress && (
-        <div className="card">
-          <h3 className="font-semibold mb-4">Log Exercise Progress</h3>
+        <div className="card border-emerald-200 dark:border-emerald-800">
+          <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Log Exercise Progress</h3>
           
           {!selectedExercise ? (
             <div>
@@ -268,12 +289,12 @@ export default function Progress() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <span className="font-medium">{selectedExercise.name}</span>
-                  <span className={`ml-2 text-xs px-2 py-0.5 rounded ${selectedExercise.is_cardio ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                  <span className="font-medium text-slate-900 dark:text-white">{selectedExercise.name}</span>
+                  <span className={`ml-2 text-xs px-2 py-0.5 rounded ${selectedExercise.is_cardio ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'}`}>
                     {selectedExercise.is_cardio ? 'Cardio' : 'Strength'}
                   </span>
                 </div>
-                <button onClick={() => setSelectedExercise(null)} className="text-sm text-slate-500">Change</button>
+                <button onClick={() => setSelectedExercise(null)} className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">Change</button>
               </div>
               
               {selectedExercise.is_cardio ? (
@@ -346,8 +367,8 @@ export default function Progress() {
       )}
 
       {showMeasurementForm && (
-        <div className="card">
-          <h3 className="font-semibold mb-4">Log Body Measurement</h3>
+        <div className="card border-purple-200 dark:border-purple-800">
+          <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Log Body Measurement</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Weight (kg)</label>
@@ -382,63 +403,103 @@ export default function Progress() {
           {/* Exercise History Chart */}
           {historyExercise && exerciseHistory.length > 0 && (
             <div className="card">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-slate-900">{historyExercise.name} Progress</h3>
-                <button onClick={() => { setHistoryExercise(null); setExerciseHistory([]); }} className="text-sm text-slate-500">Close</button>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white">{historyExercise.name}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    {exerciseHistory.length} entries • {historyExercise.is_cardio ? 'Duration over time' : 'Weight progression'}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => { setHistoryExercise(null); setExerciseHistory([]); }} 
+                  className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-3 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Close
+                </button>
               </div>
-              <div className="text-sm text-slate-500 mb-4">
-                {exerciseHistory.length} entries • Last {historyExercise.is_cardio 
-                  ? formatDuration(exerciseHistory[exerciseHistory.length - 1]?.duration_seconds)
-                  : `${exerciseHistory[exerciseHistory.length - 1]?.weight}kg`
-                }
+              
+              <div className="h-64 chart-container rounded-xl">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={getChartData(exerciseHistory, historyExercise.is_cardio)}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={chartColors.primary} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={chartColors.primary} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: chartColors.text, fontSize: 12 }}
+                      axisLine={{ stroke: chartColors.grid }}
+                    />
+                    <YAxis 
+                      tick={{ fill: chartColors.text, fontSize: 12 }}
+                      axisLine={{ stroke: chartColors.grid }}
+                      unit={historyExercise.is_cardio ? ' min' : ' kg'}
+                    />
+                    <Tooltip content={<CustomTooltip isCardio={historyExercise.is_cardio} />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke={chartColors.primary} 
+                      strokeWidth={2}
+                      fill="url(#colorValue)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-              {renderChart(exerciseHistory, historyExercise.is_cardio)}
             </div>
           )}
 
           {/* Exercise Progress Cards */}
           {exerciseProgress.length === 0 ? (
             <div className="card text-center py-12">
-              <div className="text-4xl mb-2">📈</div>
-              <div className="text-lg font-medium text-slate-700">No exercise progress logged yet</div>
-              <div className="text-slate-500 mt-1">Start logging your workouts to track progress</div>
-              <button onClick={() => setShowLogProgress(true)} className="btn-primary mt-4">Log First Exercise</button>
+              <div className="text-5xl mb-3">📈</div>
+              <div className="text-lg font-semibold text-slate-700 dark:text-slate-200">No exercise progress logged yet</div>
+              <div className="text-slate-500 dark:text-slate-400 mt-1 mb-4">Start logging your workouts to track progress</div>
+              <button onClick={() => setShowLogProgress(true)} className="btn-primary">Log First Exercise</button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {exerciseProgress.map((ep) => (
                 <div
                   key={ep.id}
-                  className="card hover:shadow-md transition-shadow cursor-pointer"
+                  className="card card-hover cursor-pointer group"
                   onClick={() => viewExerciseHistory(ep.exercise_id)}
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="font-medium text-slate-900">{ep.exercise_name}</div>
-                      <div className="text-sm text-slate-500">{ep.muscle_group || ep.category}</div>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-slate-900 dark:text-white truncate">{ep.exercise_name}</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400">{ep.muscle_group || ep.category}</div>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded ${ep.is_cardio ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                    <span className={`text-xs px-2 py-1 rounded-lg font-medium ${ep.is_cardio ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
                       {ep.is_cardio ? 'Cardio' : 'Strength'}
                     </span>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-slate-100">
+                  
+                  <div className="flex items-baseline gap-2 mb-2">
                     {ep.is_cardio ? (
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-emerald-600">{formatDuration(ep.duration_seconds)}</span>
+                      <>
+                        <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatDuration(ep.duration_seconds)}</span>
                         {ep.distance_meters && (
-                          <span className="text-slate-500">• {(ep.distance_meters / 1000).toFixed(1)}km</span>
+                          <span className="text-slate-500 dark:text-slate-400">• {(ep.distance_meters / 1000).toFixed(1)}km</span>
                         )}
-                      </div>
+                      </>
                     ) : (
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-emerald-600">{ep.weight}kg</span>
-                        <span className="text-slate-500">• {ep.sets}×{ep.reps}</span>
-                      </div>
+                      <>
+                        <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{ep.weight}kg</span>
+                        <span className="text-slate-500 dark:text-slate-400">• {ep.sets}×{ep.reps}</span>
+                      </>
                     )}
-                    <div className="text-xs text-slate-400 mt-1">
-                      {ep.total_entries} entries • Last: {new Date(ep.logged_at).toLocaleDateString()}
-                    </div>
                   </div>
+                  
+                  <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <span>{ep.total_entries} entries</span>
+                    <span>{new Date(ep.logged_at).toLocaleDateString()}</span>
+                  </div>
+                  
+                  <div className="absolute inset-0 bg-emerald-500/5 dark:bg-emerald-500/10 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity pointer-events-none" />
                 </div>
               ))}
             </div>
@@ -451,96 +512,115 @@ export default function Progress() {
           {/* Current Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="card text-center">
-              <div className="text-sm text-gray-500">Current Weight</div>
-              <div className="text-4xl font-bold text-purple-600">
-                {latestWeight ? `${latestWeight} kg` : '—'}
+              <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Current Weight</div>
+              <div className="text-4xl font-bold text-purple-600 dark:text-purple-400">
+                {latestWeight ? `${latestWeight}` : '—'}
+                <span className="text-lg font-normal text-slate-400 ml-1">kg</span>
               </div>
               {weightChange && (
-                <div className={`text-sm ${parseFloat(weightChange) < 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`text-sm mt-1 ${parseFloat(weightChange) < 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {parseFloat(weightChange) > 0 ? '+' : ''}{weightChange} kg from last
                 </div>
               )}
             </div>
             <div className="card text-center">
-              <div className="text-sm text-gray-500">Body Fat</div>
-              <div className="text-4xl font-bold text-orange-600">
-                {measurements[0]?.body_fat_percentage ? `${measurements[0].body_fat_percentage}%` : '—'}
+              <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Body Fat</div>
+              <div className="text-4xl font-bold text-orange-600 dark:text-orange-400">
+                {measurements[0]?.body_fat_percentage ? `${measurements[0].body_fat_percentage}` : '—'}
+                <span className="text-lg font-normal text-slate-400 ml-1">%</span>
               </div>
             </div>
             <div className="card text-center">
-              <div className="text-sm text-gray-500">Active Goals</div>
-              <div className="text-4xl font-bold text-emerald-600">
+              <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Active Goals</div>
+              <div className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">
                 {goals.filter(g => !g.achieved).length}
               </div>
             </div>
           </div>
 
+          {/* Weight Chart */}
+          {measurements.filter(m => m.weight).length > 1 && (
+            <div className="card">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Weight History</h2>
+              <div className="h-64 chart-container rounded-xl">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={getWeightChartData()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: chartColors.text, fontSize: 12 }}
+                      axisLine={{ stroke: chartColors.grid }}
+                    />
+                    <YAxis 
+                      tick={{ fill: chartColors.text, fontSize: 12 }}
+                      axisLine={{ stroke: chartColors.grid }}
+                      domain={['dataMin - 2', 'dataMax + 2']}
+                      unit=" kg"
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: chartColors.tooltipBg, 
+                        border: `1px solid ${chartColors.grid}`,
+                        borderRadius: '8px',
+                      }}
+                      labelStyle={{ color: chartColors.text }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="weight" 
+                      stroke={chartColors.secondary} 
+                      strokeWidth={2}
+                      dot={{ fill: chartColors.secondary, strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: chartColors.secondary, strokeWidth: 2 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Measurement History */}
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">Weight History</h2>
-              {measurements.filter(m => m.weight).length === 0 ? (
-                <p className="text-gray-500">No measurements yet.</p>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Recent Measurements</h2>
+              {measurements.length === 0 ? (
+                <p className="text-slate-500 dark:text-slate-400">No measurements yet.</p>
               ) : (
-                <>
-                  {/* Weight Chart */}
-                  <div className="flex items-end gap-1 h-32 bg-slate-50 rounded-xl p-3 mb-4">
-                    {measurements.filter(m => m.weight).slice(0, 20).reverse().map((m) => {
-                      const weights = measurements.filter(x => x.weight).map(x => x.weight);
-                      const maxW = Math.max(...weights);
-                      const minW = Math.min(...weights);
-                      const range = maxW - minW || 1;
-                      const height = ((m.weight - minW) / range) * 100 + 10;
-                      return (
-                        <div
-                          key={m.id}
-                          className="flex-1 min-w-2 bg-purple-500 rounded-t hover:bg-purple-600 transition-colors relative group"
-                          style={{ height: `${height}%` }}
-                        >
-                          <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">
-                            {m.weight}kg<br />
-                            <span className="text-slate-300">{new Date(m.measured_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {measurements.slice(0, 10).map((m) => (
-                      <div key={m.id} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
-                        <span className="text-sm text-gray-500">
-                          {new Date(m.measured_at).toLocaleDateString()}
-                        </span>
-                        <div className="text-right">
-                          {m.weight && <span className="font-medium">{m.weight} kg</span>}
-                          {m.body_fat_percentage && <span className="text-gray-500 ml-2">({m.body_fat_percentage}% BF)</span>}
-                        </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {measurements.slice(0, 10).map((m) => (
+                    <div key={m.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        {new Date(m.measured_at).toLocaleDateString()}
+                      </span>
+                      <div className="text-right">
+                        {m.weight && <span className="font-medium text-slate-900 dark:text-white">{m.weight} kg</span>}
+                        {m.body_fat_percentage && <span className="text-slate-500 dark:text-slate-400 ml-2">({m.body_fat_percentage}% BF)</span>}
                       </div>
-                    ))}
-                  </div>
-                </>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
             {/* Goals */}
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">Goals</h2>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Goals</h2>
               {goals.length === 0 ? (
-                <p className="text-gray-500">No goals set yet.</p>
+                <p className="text-slate-500 dark:text-slate-400">No goals set yet.</p>
               ) : (
                 <div className="space-y-3">
                   {goals.map((goal) => (
-                    <div key={goal.id} className={`p-3 rounded-lg ${goal.achieved ? 'bg-green-50' : 'bg-gray-50'}`}>
+                    <div key={goal.id} className={`p-4 rounded-xl ${goal.achieved ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-800/50'}`}>
                       <div className="flex justify-between items-center">
-                        <span className="font-medium capitalize">{goal.goal_type.replace('_', ' ')}</span>
-                        {goal.achieved && <span className="text-green-600">✓ Achieved</span>}
+                        <span className="font-medium text-slate-900 dark:text-white capitalize">{goal.goal_type.replace('_', ' ')}</span>
+                        {goal.achieved && <span className="text-green-600 dark:text-green-400 text-sm font-medium">✓ Achieved</span>}
                       </div>
-                      <div className="text-sm text-gray-500 mt-1">
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                         {goal.current_value || 0} / {goal.target_value} {goal.unit}
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-3">
                         <div
-                          className="bg-emerald-500 h-2 rounded-full"
+                          className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
                           style={{ width: `${Math.min(((goal.current_value || 0) / goal.target_value) * 100, 100)}%` }}
                         />
                       </div>
