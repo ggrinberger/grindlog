@@ -196,6 +196,16 @@ export default function Progress() {
     }));
   };
 
+  // Compute Y-axis domain for exercise chart
+  const getExerciseChartDomain = (data: HistoryEntry[], isCardio: boolean): [number, number] => {
+    const values = data.map(entry => 
+      isCardio ? Math.round((entry.duration_seconds || 0) / 60) : entry.weight || 0
+    );
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return [Math.floor(min - 2), Math.ceil(max + 2)];
+  };
+
   // Format weight chart data
   const getWeightChartData = () => {
     return measurements
@@ -436,8 +446,10 @@ export default function Progress() {
                     <YAxis 
                       tick={{ fill: chartColors.text, fontSize: 12 }}
                       axisLine={{ stroke: chartColors.grid }}
-                      domain={['dataMin - 2', 'dataMax + 2']}
+                      domain={getExerciseChartDomain(exerciseHistory, historyExercise.is_cardio)}
                       unit={historyExercise.is_cardio ? ' min' : ' kg'}
+                      type="number"
+                      scale="linear"
                     />
                     <Tooltip 
                       contentStyle={{ 
