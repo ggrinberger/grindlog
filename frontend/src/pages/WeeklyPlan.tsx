@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { templates as templatesApi, cardio as cardioApi } from '../services/api';
+import { templates as templatesApi, cardio as cardioApi, progress as progressApi } from '../services/api';
 
 interface WorkoutTemplate {
   id: string;
@@ -98,10 +98,12 @@ export default function WeeklyPlan() {
   const [cardioProtocols, setCardioProtocols] = useState<CardioProtocol[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<number | null>(TODAY);
+  const [lastWeights, setLastWeights] = useState<Record<string, { weight: number; sets: number; reps: number; logged_at: string }>>({});
   
   // Active workout state
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [editingExercise, setEditingExercise] = useState<EditingExercise | null>(null);
+  const [savingExercise, setSavingExercise] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -113,9 +115,25 @@ export default function WeeklyPlan() {
         templatesApi.getWeekly(),
         cardioApi.getProtocols(),
       ]);
-      setWeeklyPlan(response.data.weeklyPlan || {});
+      const plan = response.data.weeklyPlan || {};
+      setWeeklyPlan(plan);
       setDayNames(response.data.dayNames || {});
       setCardioProtocols(cardioRes.data || []);
+      
+      // Fetch last weights for all exercises
+      const allExercises = Object.values(plan).flat() as WorkoutTemplate[];
+      const allExerciseNames = allExercises
+        .map(t => t.exercise)
+        .filter((name, index, arr) => arr.indexOf(name) === index); // unique
+      
+      if (allExerciseNames.length > 0) {
+        try {
+          const weightsRes = await progressApi.getLastWeights(allExerciseNames);
+          setLastWeights(weightsRes.data || {});
+        } catch {
+          // Ignore if endpoint doesn't exist yet
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch weekly plan:', error);
     } finally {
@@ -172,6 +190,12 @@ export default function WeeklyPlan() {
     setActiveWorkout({ ...activeWorkout, completedExercises: newCompleted });
   };
 
+  // Get last weight for an exercise
+  const getLastWeight = (exerciseName: string): { weight: number; sets: number; reps: number } | null => {
+    const key = exerciseName.toLowerCase();
+    return lastWeights[key] || null;
+  };
+
   // Open exercise editor
   const openExerciseEditor = (exercise: WorkoutTemplate) => {
     // Parse sets_reps like "4x3-5" or "3x8-10"
@@ -179,11 +203,14 @@ export default function WeeklyPlan() {
     const sets = match ? match[1] : '3';
     const reps = match ? match[2] : '10';
     
+    // Get last weight if available
+    const last = getLastWeight(exercise.exercise);
+    
     setEditingExercise({
       exercise,
-      sets,
-      reps,
-      weight: '',
+      sets: last?.sets?.toString() || sets,
+      reps: last?.reps?.toString() || reps,
+      weight: last?.weight?.toString() || '',
     });
   };
 
@@ -191,19 +218,40 @@ export default function WeeklyPlan() {
   const logExercise = async () => {
     if (!editingExercise) return;
     
-    const { exercise } = editingExercise;
-    // Note: sets, reps, weight from editingExercise can be used for logging to backend
+    const { exercise, sets, reps, weight } = editingExercise;
+    setSavingExercise(true);
     
     try {
-      // Find the exercise in the exercises table by name (approximate match)
-      // For now, we'll just mark it complete - in a real implementation,
-      // you'd want to match by exercise ID and log the custom values
+      // Log to backend
+      await progressApi.logExerciseByName({
+        exerciseName: exercise.exercise,
+        weight: weight ? parseFloat(weight) : undefined,
+        sets: sets ? parseInt(sets) : undefined,
+        reps: reps ? parseInt(reps) : undefined,
+      });
+      
+      // Update local lastWeights cache
+      if (weight) {
+        setLastWeights(prev => ({
+          ...prev,
+          [exercise.exercise.toLowerCase()]: {
+            weight: parseFloat(weight),
+            sets: parseInt(sets) || 0,
+            reps: parseInt(reps) || 0,
+            logged_at: new Date().toISOString(),
+          }
+        }));
+      }
+      
+      // Mark complete in active workout
       if (activeWorkout) {
         markExerciseComplete(exercise.id);
       }
       setEditingExercise(null);
     } catch (error) {
       console.error('Failed to log exercise:', error);
+    } finally {
+      setSavingExercise(false);
     }
   };
 
@@ -364,13 +412,18 @@ export default function WeeklyPlan() {
                       )}
                     </div>
 
-                    {/* Sets/Reps/Intensity */}
+                    {/* Sets/Reps/Intensity + Last Weight */}
                     <div className="text-right flex-shrink-0">
                       {ex.sets_reps && ex.sets_reps !== 'N/A' && (
                         <div className="font-semibold text-slate-900 dark:text-white">{ex.sets_reps}</div>
                       )}
                       {ex.intensity && ex.intensity !== 'N/A' && (
                         <div className="text-xs text-slate-500 dark:text-slate-400">{ex.intensity}</div>
+                      )}
+                      {getLastWeight(ex.exercise) && (
+                        <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                          Last: {getLastWeight(ex.exercise)!.weight}kg
+                        </div>
                       )}
                     </div>
 
@@ -406,16 +459,31 @@ export default function WeeklyPlan() {
         {editingExercise && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Modify Exercise</h3>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Log Exercise</h3>
               <p className="text-slate-500 dark:text-slate-400 mb-4">{editingExercise.exercise.exercise}</p>
               
-              {/* Planned values */}
+              {/* Planned values + Last weight */}
               <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 mb-4">
-                <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Planned</div>
-                <div className="font-medium text-slate-900 dark:text-white">
-                  {editingExercise.exercise.sets_reps}
-                  {editingExercise.exercise.intensity && editingExercise.exercise.intensity !== 'N/A' && (
-                    <span className="text-slate-500 dark:text-slate-400 ml-2">@ {editingExercise.exercise.intensity}</span>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Planned</div>
+                    <div className="font-medium text-slate-900 dark:text-white">
+                      {editingExercise.exercise.sets_reps}
+                      {editingExercise.exercise.intensity && editingExercise.exercise.intensity !== 'N/A' && (
+                        <span className="text-slate-500 dark:text-slate-400 ml-2">@ {editingExercise.exercise.intensity}</span>
+                      )}
+                    </div>
+                  </div>
+                  {getLastWeight(editingExercise.exercise.exercise) && (
+                    <div className="text-right">
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Last Set</div>
+                      <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                        {getLastWeight(editingExercise.exercise.exercise)!.weight}kg
+                        <span className="text-slate-400 dark:text-slate-500 text-sm ml-1">
+                          ({getLastWeight(editingExercise.exercise.exercise)!.sets}×{getLastWeight(editingExercise.exercise.exercise)!.reps})
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -449,7 +517,7 @@ export default function WeeklyPlan() {
                     value={editingExercise.weight}
                     onChange={(e) => setEditingExercise({ ...editingExercise, weight: e.target.value })}
                     className="input"
-                    placeholder="Optional"
+                    placeholder="Enter weight"
                     step="0.5"
                   />
                 </div>
@@ -457,10 +525,10 @@ export default function WeeklyPlan() {
 
               {/* Actions */}
               <div className="flex gap-3">
-                <button onClick={logExercise} className="btn-primary flex-1">
-                  Save & Complete ✓
+                <button onClick={logExercise} className="btn-primary flex-1" disabled={savingExercise}>
+                  {savingExercise ? 'Saving...' : 'Save & Complete ✓'}
                 </button>
-                <button onClick={() => setEditingExercise(null)} className="btn-secondary">
+                <button onClick={() => setEditingExercise(null)} className="btn-secondary" disabled={savingExercise}>
                   Cancel
                 </button>
               </div>
@@ -624,6 +692,11 @@ export default function WeeklyPlan() {
                             )}
                             {ex.rest_seconds && ex.rest_seconds !== 'N/A' && (
                               <div className="text-xs text-slate-400 dark:text-slate-500">Rest: {ex.rest_seconds}s</div>
+                            )}
+                            {getLastWeight(ex.exercise) && (
+                              <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                                Last: {getLastWeight(ex.exercise)!.weight}kg
+                              </div>
                             )}
                           </div>
                         </div>

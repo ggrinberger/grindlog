@@ -273,4 +273,88 @@ router.get('/exercises/overview', authenticate, async (req: AuthRequest, res: Re
   }
 });
 
+// Get last weights for exercise names (for Training Plan display)
+router.post('/exercises/last-weights', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { exerciseNames } = req.body;
+    
+    if (!exerciseNames || !Array.isArray(exerciseNames) || exerciseNames.length === 0) {
+      return res.json({});
+    }
+    
+    // Find exercises by name (case-insensitive partial match)
+    const result = await query(
+      `SELECT DISTINCT ON (e.name) 
+        e.name as exercise_name,
+        ep.weight,
+        ep.sets,
+        ep.reps,
+        ep.logged_at
+       FROM exercises e
+       JOIN exercise_progress ep ON e.id = ep.exercise_id AND ep.user_id = $1
+       WHERE LOWER(e.name) = ANY(SELECT LOWER(unnest($2::text[])))
+       ORDER BY e.name, ep.logged_at DESC`,
+      [req.user!.id, exerciseNames]
+    );
+    
+    // Return as a map of exercise name -> last weight info
+    const lastWeights: Record<string, { weight: number; sets: number; reps: number; logged_at: string }> = {};
+    for (const row of result.rows) {
+      lastWeights[row.exercise_name.toLowerCase()] = {
+        weight: row.weight,
+        sets: row.sets,
+        reps: row.reps,
+        logged_at: row.logged_at
+      };
+    }
+    
+    res.json(lastWeights);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Log exercise by name (creates exercise if not exists, then logs progress)
+router.post('/exercises/log-by-name', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { exerciseName, weight, sets, reps, notes, category, muscleGroup } = req.body;
+    
+    if (!exerciseName) {
+      return res.status(400).json({ error: 'Exercise name required' });
+    }
+    
+    // Find or create exercise
+    let exerciseResult = await query(
+      `SELECT id FROM exercises WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+      [exerciseName]
+    );
+    
+    let exerciseId: string;
+    
+    if (exerciseResult.rows.length === 0) {
+      // Create the exercise
+      const newExercise = await query(
+        `INSERT INTO exercises (name, category, muscle_group, is_public, created_by)
+         VALUES ($1, $2, $3, false, $4) RETURNING id`,
+        [exerciseName, category || 'Strength', muscleGroup || 'Full Body', req.user!.id]
+      );
+      exerciseId = newExercise.rows[0].id;
+    } else {
+      exerciseId = exerciseResult.rows[0].id;
+    }
+    
+    // Log the progress
+    const result = await query(
+      `INSERT INTO exercise_progress 
+        (user_id, exercise_id, weight, sets, reps, notes)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.user!.id, exerciseId, weight, sets, reps, notes]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
