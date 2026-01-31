@@ -33,8 +33,12 @@ export default function Layout() {
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: '📊', mobileLabel: 'Home' },
-    { to: '/workouts', label: 'Workouts', icon: '🏋️', mobileLabel: 'Workout' },
-    { to: '/diet', label: 'Nutrition', icon: '🥗', mobileLabel: 'Food' },
+    { to: '/workouts', label: 'My Schedule', icon: '🏋️', mobileLabel: 'Workout' },
+    { to: '/weekly-plan', label: 'Training Plan', icon: '📋', mobileLabel: 'Plan' },
+    { to: '/routines', label: 'Routines', icon: '☀️', mobileLabel: 'Routines' },
+    { to: '/cardio', label: 'Cardio', icon: '❤️', mobileLabel: 'Cardio' },
+    { to: '/nutrition', label: 'Nutrition', icon: '🥗', mobileLabel: 'Food' },
+    { to: '/supplements', label: 'Supplements', icon: '💊', mobileLabel: 'Supps' },
     { to: '/progress', label: 'Progress', icon: '📈', mobileLabel: 'Progress' },
     { to: '/groups', label: 'Groups', icon: '👥', mobileLabel: 'Groups' },
   ];

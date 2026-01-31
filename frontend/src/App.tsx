@@ -8,6 +8,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Workouts from './pages/Workouts';
+import WeeklyPlan from './pages/WeeklyPlan';
+import Routines from './pages/Routines';
+import Cardio from './pages/Cardio';
+import Nutrition from './pages/Nutrition';
+import Supplements from './pages/Supplements';
 import Diet from './pages/Diet';
 import Progress from './pages/Progress';
 import Groups from './pages/Groups';
@@ -79,6 +84,11 @@ function AppContent() {
         >
           <Route index element={<Dashboard />} />
           <Route path="workouts" element={<Workouts />} />
+          <Route path="weekly-plan" element={<WeeklyPlan />} />
+          <Route path="routines" element={<Routines />} />
+          <Route path="cardio" element={<Cardio />} />
+          <Route path="nutrition" element={<Nutrition />} />
+          <Route path="supplements" element={<Supplements />} />
           <Route path="diet" element={<Diet />} />
           <Route path="progress" element={<Progress />} />
           <Route path="groups" element={<Groups />} />

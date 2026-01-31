@@ -142,6 +142,76 @@ export const admin = {
   getHealth: () => api.get('/admin/health'),
 };
 
+// Workout Templates
+export const templates = {
+  getAll: () => api.get('/templates'),
+  getByDay: (dayOfWeek: number) => api.get(`/templates/day/${dayOfWeek}`),
+  getWeekly: () => api.get('/templates/weekly'),
+  create: (data: { dayOfWeek: number; dayName: string; section?: string; exercise: string; setsReps?: string; intensity?: string; restSeconds?: string; notes?: string; orderIndex?: number }) =>
+    api.post('/templates', data),
+  update: (id: string, data: unknown) => api.put(`/templates/${id}`, data),
+  delete: (id: string) => api.delete(`/templates/${id}`),
+};
+
+// Routines
+export const routines = {
+  getAll: (type?: 'morning' | 'evening') => api.get('/routines', { params: { type } }),
+  getById: (id: string) => api.get(`/routines/${id}`),
+  create: (data: { name: string; type: 'morning' | 'evening'; description?: string; totalDurationMinutes?: number; items: unknown[] }) =>
+    api.post('/routines', data),
+  update: (id: string, data: unknown) => api.put(`/routines/${id}`, data),
+  complete: (routineId: string, data: { itemsCompleted?: string[]; notes?: string }) =>
+    api.post(`/routines/${routineId}/complete`, data),
+  getHistory: (limit?: number, offset?: number, startDate?: string, endDate?: string) =>
+    api.get('/routines/completions/history', { params: { limit, offset, startDate, endDate } }),
+  getTodayStatus: () => api.get('/routines/completions/today'),
+};
+
+// Cardio Protocols
+export const cardio = {
+  getProtocols: () => api.get('/cardio/protocols'),
+  getProtocol: (id: string) => api.get(`/cardio/protocols/${id}`),
+  createProtocol: (data: { name: string; modality?: string; description?: string; totalMinutes?: number; frequency?: string; hrZoneTarget?: string; instructions?: string; scienceNotes?: string }) =>
+    api.post('/cardio/protocols', data),
+  updateProtocol: (id: string, data: unknown) => api.put(`/cardio/protocols/${id}`, data),
+  logSession: (data: { protocolId: string; durationMinutes?: number; avgHeartRate?: number; maxHeartRate?: number; caloriesBurned?: number; notes?: string }) =>
+    api.post('/cardio/log', data),
+  getLogs: (limit?: number, offset?: number, startDate?: string, endDate?: string, protocolId?: string) =>
+    api.get('/cardio/logs', { params: { limit, offset, startDate, endDate, protocolId } }),
+  getWeeklySummary: () => api.get('/cardio/summary/weekly'),
+};
+
+// Nutrition (Enhanced)
+export const nutrition = {
+  getTargets: () => api.get('/nutrition/targets'),
+  setTargets: (data: { dailyCalories?: number; proteinG?: number; carbsG?: number; fatG?: number }) =>
+    api.put('/nutrition/targets', data),
+  logMeal: (data: { mealType: string; items?: unknown[]; notes?: string; loggedAt?: string }) =>
+    api.post('/nutrition/meals', data),
+  getMeals: (date?: string) => api.get('/nutrition/meals', { params: { date } }),
+  getMeal: (id: string) => api.get(`/nutrition/meals/${id}`),
+  updateMeal: (id: string, data: unknown) => api.put(`/nutrition/meals/${id}`, data),
+  deleteMeal: (id: string) => api.delete(`/nutrition/meals/${id}`),
+  getDailySummary: (date?: string) => api.get('/nutrition/summary/daily', { params: { date } }),
+  getWeeklySummary: () => api.get('/nutrition/summary/weekly'),
+};
+
+// Supplements (Enhanced)
+export const supplements = {
+  getAll: () => api.get('/supplements'),
+  getById: (id: string) => api.get(`/supplements/${id}`),
+  create: (data: { name: string; dosage?: string; frequency?: string; timingNotes?: string; description?: string }) =>
+    api.post('/supplements', data),
+  update: (id: string, data: unknown) => api.put(`/supplements/${id}`, data),
+  delete: (id: string) => api.delete(`/supplements/${id}`),
+  log: (supplementId: string, data?: { notes?: string; takenAt?: string }) =>
+    api.post(`/supplements/${supplementId}/log`, data || {}),
+  getHistory: (limit?: number, offset?: number, startDate?: string, endDate?: string, supplementId?: string) =>
+    api.get('/supplements/logs/history', { params: { limit, offset, startDate, endDate, supplementId } }),
+  getTodayStatus: () => api.get('/supplements/logs/today'),
+  deleteLog: (logId: string) => api.delete(`/supplements/logs/${logId}`),
+};
+
 // Onboarding
 export const onboarding = {
   getStatus: () => api.get('/onboarding/status'),
