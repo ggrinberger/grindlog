@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { workouts, onboarding, progress } from '../services/api';
+import { formatWeight } from '../utils/format';
 
 interface Exercise {
   id: string;
@@ -423,7 +424,7 @@ export default function Workouts() {
                       ) : (
                         <>
                           {ex.sets} × {ex.reps}
-                          {ex.weight && ` @ ${ex.weight}kg`}
+                          {ex.weight && ` @ ${formatWeight(ex.weight)}kg`}
                         </>
                       )}
                     </div>
@@ -476,7 +477,7 @@ export default function Workouts() {
                   ) : (
                     <>
                       {loggingExercise.exercise.sets} sets × {loggingExercise.exercise.reps} reps
-                      {loggingExercise.exercise.weight && ` @ ${loggingExercise.exercise.weight}kg`}
+                      {loggingExercise.exercise.weight && ` @ ${formatWeight(loggingExercise.exercise.weight)}kg`}
                     </>
                   )}
                 </div>
@@ -862,7 +863,7 @@ export default function Workouts() {
                                   {ex.weight && (
                                     <>
                                       <span className="text-slate-400 dark:text-slate-500 ml-1">@</span>
-                                      <span className="font-medium">{ex.weight}kg</span>
+                                      <span className="font-medium">{formatWeight(ex.weight)}kg</span>
                                     </>
                                   )}
                                 </>
