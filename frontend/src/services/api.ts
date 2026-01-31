@@ -171,6 +171,7 @@ export const routines = {
 export const cardio = {
   getProtocols: () => api.get('/cardio/protocols'),
   getProtocol: (id: string) => api.get(`/cardio/protocols/${id}`),
+  getByDay: () => api.get('/cardio/by-day'),
   createProtocol: (data: { name: string; modality?: string; description?: string; totalMinutes?: number; frequency?: string; hrZoneTarget?: string; instructions?: string; scienceNotes?: string }) =>
     api.post('/cardio/protocols', data),
   updateProtocol: (id: string, data: unknown) => api.put(`/cardio/protocols/${id}`, data),

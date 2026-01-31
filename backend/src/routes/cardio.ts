@@ -184,4 +184,45 @@ router.get('/summary/weekly', authenticate, async (req: AuthRequest, res: Respon
   }
 });
 
+// Get cardio protocols mapped by day of week
+router.get('/by-day', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    // Static mapping based on the training program
+    // Day mapping: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+    const dayMapping: Record<number, { protocolName: string; description: string }> = {
+      1: { protocolName: '4x4 Protocol', description: '4 rounds of 4 min max effort + 4 min recovery' },
+      2: { protocolName: 'Zone 2 Aerobic Base', description: 'Zone 2 cardio after pull workout' },
+      4: { protocolName: '3 Min Hard Intervals', description: '5 rounds of 3 min hard + 2 min easy' },
+      5: { protocolName: 'Tabata', description: '8 rounds of 20 sec max + 10 sec rest (optional)' },
+    };
+    
+    // Fetch matching protocols
+    const result = await query(
+      `SELECT * FROM cardio_protocols WHERE is_active = true ORDER BY name`
+    );
+    
+    const protocols = result.rows;
+    const byDay: Record<number, { day: number; protocolName: string; description: string; protocol: typeof protocols[0] | null }> = {};
+    
+    for (const [day, info] of Object.entries(dayMapping)) {
+      const dayNum = parseInt(day);
+      const matchingProtocol = protocols.find((p: { name: string }) => 
+        p.name.toLowerCase().includes(info.protocolName.split(' ')[0].toLowerCase()) ||
+        info.protocolName.toLowerCase().includes(p.name.split(' ')[0].toLowerCase())
+      );
+      
+      byDay[dayNum] = {
+        day: dayNum,
+        protocolName: info.protocolName,
+        description: info.description,
+        protocol: matchingProtocol || null,
+      };
+    }
+    
+    res.json(byDay);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

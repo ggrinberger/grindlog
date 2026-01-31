@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { progress, workouts } from '../services/api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { progress, workouts, supplements as supplementsApi, routines as routinesApi } from '../services/api';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useThemeStore } from '../store/themeStore';
 import { formatWeight } from '../utils/format';
 
@@ -55,6 +55,28 @@ interface HistoryEntry {
   logged_at: string;
 }
 
+interface SupplementStatus {
+  supplement: { id: string; name: string };
+  todayLogs: { id: string; taken_at: string }[];
+  dosesLogged: number;
+  expectedDoses: number;
+  complete: boolean;
+}
+
+interface RoutineCompletion {
+  id: string;
+  routine_id: string;
+  routine_name: string;
+  routine_type: string;
+  completed_at: string;
+}
+
+interface SupplementLog {
+  id: string;
+  supplement_name: string;
+  taken_at: string;
+}
+
 export default function Progress() {
   const { isDark } = useThemeStore();
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
@@ -76,14 +98,20 @@ export default function Progress() {
     durationMinutes: '',
     distanceKm: '',
   });
-  const [activeTab, setActiveTab] = useState<'body' | 'exercises'>('exercises');
+  const [activeTab, setActiveTab] = useState<'overview' | 'exercises' | 'body'>('overview');
   const [showCreateGoal, setShowCreateGoal] = useState(false);
   const [newGoal, setNewGoal] = useState({ goalType: '', targetValue: '', unit: '', deadline: '' });
+
+  // New tracking data
+  const [supplementStatus, setSupplementStatus] = useState<SupplementStatus[]>([]);
+  const [supplementHistory, setSupplementHistory] = useState<SupplementLog[]>([]);
+  const [routineCompletions, setRoutineCompletions] = useState<RoutineCompletion[]>([]);
 
   // Chart colors based on theme
   const chartColors = {
     primary: '#10b981',
     secondary: '#8b5cf6',
+    tertiary: '#f59e0b',
     grid: isDark ? '#334155' : '#e2e8f0',
     text: isDark ? '#94a3b8' : '#64748b',
     background: isDark ? '#1e293b' : '#f8fafc',
@@ -96,16 +124,22 @@ export default function Progress() {
 
   const fetchData = async () => {
     try {
-      const [measurementsRes, goalsRes, exercisesRes, progressRes] = await Promise.all([
+      const [measurementsRes, goalsRes, exercisesRes, progressRes, suppStatusRes, suppHistoryRes, routineHistoryRes] = await Promise.all([
         progress.getMeasurements(),
         progress.getGoals(),
         workouts.getExercises(),
         progress.getExercisesOverview(),
+        supplementsApi.getTodayStatus(),
+        supplementsApi.getHistory(30),
+        routinesApi.getHistory(30),
       ]);
       setMeasurements(measurementsRes.data);
       setGoals(goalsRes.data);
       setExercises(exercisesRes.data);
       setExerciseProgress(progressRes.data);
+      setSupplementStatus(suppStatusRes.data);
+      setSupplementHistory(suppHistoryRes.data);
+      setRoutineCompletions(routineHistoryRes.data);
     } catch (error) {
       console.error('Failed to fetch progress data:', error);
     } finally {
@@ -187,6 +221,104 @@ export default function Progress() {
     return secs > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${mins} min`;
   };
 
+  // Calculate supplement compliance for the week
+  const getSupplementCompliance = () => {
+    const last7Days: { date: string; count: number; expected: number }[] = [];
+    const today = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      const dayLogs = supplementHistory.filter(log => 
+        log.taken_at.split('T')[0] === dateStr
+      );
+      
+      last7Days.push({
+        date: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        count: dayLogs.length,
+        expected: supplementStatus.length || 2, // Assume 2 supplements if no data
+      });
+    }
+    
+    return last7Days;
+  };
+
+  // Calculate routine completion streak
+  const getRoutineStreak = () => {
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (let i = 0; i < 30; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(checkDate.getDate() - i);
+      const dateStr = checkDate.toISOString().split('T')[0];
+      
+      const dayRoutines = routineCompletions.filter(r => 
+        r.completed_at.split('T')[0] === dateStr
+      );
+      
+      if (dayRoutines.length > 0) {
+        streak++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    
+    return streak;
+  };
+
+  // Calculate supplement streak
+  const getSupplementStreak = () => {
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (let i = 0; i < 30; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(checkDate.getDate() - i);
+      const dateStr = checkDate.toISOString().split('T')[0];
+      
+      const dayLogs = supplementHistory.filter(log => 
+        log.taken_at.split('T')[0] === dateStr
+      );
+      
+      if (dayLogs.length > 0) {
+        streak++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    
+    return streak;
+  };
+
+  // Calculate workout streak
+  const getWorkoutStreak = () => {
+    // Based on exercise progress entries
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const uniqueDates = [...new Set(exerciseProgress.map(ep => ep.logged_at.split('T')[0]))].sort().reverse();
+    
+    for (let i = 0; i < uniqueDates.length && i < 30; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(checkDate.getDate() - i);
+      const dateStr = checkDate.toISOString().split('T')[0];
+      
+      if (uniqueDates.includes(dateStr)) {
+        streak++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    
+    return Math.min(streak, exerciseProgress.length > 0 ? 30 : 0);
+  };
+
   // Format chart data for exercise history
   const getChartData = (data: HistoryEntry[], isCardio: boolean) => {
     return data.map(entry => ({
@@ -236,6 +368,13 @@ export default function Progress() {
   const previousWeight = measurements.slice(1).find(m => m.weight)?.weight;
   const weightChange = latestWeight && previousWeight ? (latestWeight - previousWeight).toFixed(1) : null;
 
+  const supplementCompliance = getSupplementCompliance();
+  const supplementsCompleteToday = supplementStatus.filter(s => s.complete).length;
+  const totalSupplements = supplementStatus.length;
+  const routineStreak = getRoutineStreak();
+  const supplementStreak = getSupplementStreak();
+  const workoutStreak = getWorkoutStreak();
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -255,6 +394,16 @@ export default function Progress() {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+            activeTab === 'overview'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          Overview
+        </button>
         <button
           onClick={() => setActiveTab('exercises')}
           className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
@@ -412,6 +561,245 @@ export default function Progress() {
             <button onClick={() => setShowMeasurementForm(false)} className="btn-secondary">Cancel</button>
           </div>
         </div>
+      )}
+
+      {/* Overview Tab - Streaks and Compliance */}
+      {activeTab === 'overview' && (
+        <>
+          {/* Streak Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="card text-center">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-3">
+                <span className="text-3xl">🏋️</span>
+              </div>
+              <div className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{workoutStreak}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Workout Streak</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500">days in a row</div>
+            </div>
+            
+            <div className="card text-center">
+              <div className="w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mx-auto mb-3">
+                <span className="text-3xl">💊</span>
+              </div>
+              <div className="text-4xl font-bold text-purple-600 dark:text-purple-400">{supplementStreak}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Supplement Streak</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500">days consistent</div>
+            </div>
+            
+            <div className="card text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-3">
+                <span className="text-3xl">☀️</span>
+              </div>
+              <div className="text-4xl font-bold text-amber-600 dark:text-amber-400">{routineStreak}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Routine Streak</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500">days completed</div>
+            </div>
+          </div>
+
+          {/* Today's Supplement Status */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Today's Supplements</h3>
+              <span className={`badge ${supplementsCompleteToday === totalSupplements && totalSupplements > 0 ? 'badge-emerald' : 'badge-gray'}`}>
+                {supplementsCompleteToday}/{totalSupplements} complete
+              </span>
+            </div>
+            
+            {supplementStatus.length === 0 ? (
+              <div className="text-center py-6 text-slate-500 dark:text-slate-400">
+                No supplements being tracked
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {supplementStatus.map((status) => (
+                  <div
+                    key={status.supplement.id}
+                    className={`flex items-center justify-between p-3 rounded-xl ${
+                      status.complete
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800'
+                        : 'bg-slate-50 dark:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        status.complete ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'
+                      }`}>
+                        {status.complete ? '✓' : '○'}
+                      </div>
+                      <span className={status.complete ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}>
+                        {status.supplement.name}
+                      </span>
+                    </div>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {status.dosesLogged}/{status.expectedDoses}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Weekly Supplement Compliance Chart */}
+          {supplementCompliance.length > 0 && (
+            <div className="card">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Weekly Supplement Compliance</h3>
+              <div className="h-48 chart-container rounded-xl">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={supplementCompliance}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fill: chartColors.text, fontSize: 12 }}
+                      axisLine={{ stroke: chartColors.grid }}
+                    />
+                    <YAxis 
+                      tick={{ fill: chartColors.text, fontSize: 12 }}
+                      axisLine={{ stroke: chartColors.grid }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: chartColors.tooltipBg, 
+                        border: `1px solid ${chartColors.grid}`,
+                        borderRadius: '8px',
+                      }}
+                      labelStyle={{ color: chartColors.text }}
+                    />
+                    <Bar dataKey="count" fill={chartColors.secondary} radius={[4, 4, 0, 0]} name="Taken" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Recent Routine Completions */}
+          {routineCompletions.length > 0 && (
+            <div className="card">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Recent Routine Completions</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {routineCompletions.slice(0, 10).map((completion) => (
+                  <div key={completion.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-lg ${completion.routine_type === 'morning' ? '🌅' : '🌙'}`}>
+                        {completion.routine_type === 'morning' ? '🌅' : '🌙'}
+                      </span>
+                      <span className="font-medium text-slate-900 dark:text-white">{completion.routine_name}</span>
+                    </div>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {new Date(completion.completed_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Goals */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Goals</h2>
+              <button
+                onClick={() => setShowCreateGoal(true)}
+                className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium"
+              >
+                + Add Goal
+              </button>
+            </div>
+            
+            {showCreateGoal && (
+              <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-3">
+                <div>
+                  <label className="label">Goal Type</label>
+                  <select
+                    value={newGoal.goalType}
+                    onChange={(e) => setNewGoal({ ...newGoal, goalType: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Select goal type...</option>
+                    <option value="weight_loss">Weight Loss</option>
+                    <option value="muscle_gain">Muscle Gain</option>
+                    <option value="body_fat">Body Fat %</option>
+                    <option value="workout_frequency">Workout Frequency</option>
+                    <option value="running_distance">Running Distance</option>
+                    <option value="strength">Strength Goal</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Target Value</label>
+                    <input
+                      type="number"
+                      value={newGoal.targetValue}
+                      onChange={(e) => setNewGoal({ ...newGoal, targetValue: e.target.value })}
+                      className="input"
+                      placeholder="100"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Unit</label>
+                    <input
+                      type="text"
+                      value={newGoal.unit}
+                      onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })}
+                      className="input"
+                      placeholder="kg, %, km..."
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Deadline (optional)</label>
+                  <input
+                    type="date"
+                    value={newGoal.deadline}
+                    onChange={(e) => setNewGoal({ ...newGoal, deadline: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={createGoal} className="btn-primary text-sm">Create Goal</button>
+                  <button onClick={() => setShowCreateGoal(false)} className="btn-secondary text-sm">Cancel</button>
+                </div>
+              </div>
+            )}
+            
+            {goals.length === 0 && !showCreateGoal ? (
+              <div className="text-center py-6">
+                <p className="text-slate-500 dark:text-slate-400 mb-2">No goals set yet</p>
+                <button
+                  onClick={() => setShowCreateGoal(true)}
+                  className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  Create your first goal
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {goals.map((goal) => (
+                  <div key={goal.id} className={`p-4 rounded-xl ${goal.achieved ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-800/50'}`}>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-slate-900 dark:text-white capitalize">{goal.goal_type.replace(/_/g, ' ')}</span>
+                      {goal.achieved && <span className="text-green-600 dark:text-green-400 text-sm font-medium">✓ Achieved</span>}
+                    </div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      {goal.current_value || 0} / {goal.target_value} {goal.unit}
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-3">
+                      <div
+                        className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(((goal.current_value || 0) / goal.target_value) * 100, 100)}%` }}
+                      />
+                    </div>
+                    {goal.deadline && (
+                      <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                        Due: {new Date(goal.deadline).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {activeTab === 'exercises' && (
@@ -600,135 +988,26 @@ export default function Progress() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Measurement History */}
-            <div className="card">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Recent Measurements</h2>
-              {measurements.length === 0 ? (
-                <p className="text-slate-500 dark:text-slate-400">No measurements yet.</p>
-              ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {measurements.slice(0, 10).map((m) => (
-                    <div key={m.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                      <span className="text-sm text-slate-500 dark:text-slate-400">
-                        {new Date(m.measured_at).toLocaleDateString()}
-                      </span>
-                      <div className="text-right">
-                        {m.weight && <span className="font-medium text-slate-900 dark:text-white">{formatWeight(m.weight)} kg</span>}
-                        {m.body_fat_percentage && <span className="text-slate-500 dark:text-slate-400 ml-2">({m.body_fat_percentage}% BF)</span>}
-                      </div>
+          {/* Measurement History */}
+          <div className="card">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Recent Measurements</h2>
+            {measurements.length === 0 ? (
+              <p className="text-slate-500 dark:text-slate-400">No measurements yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {measurements.slice(0, 10).map((m) => (
+                  <div key={m.id} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      {new Date(m.measured_at).toLocaleDateString()}
+                    </span>
+                    <div className="text-right">
+                      {m.weight && <span className="font-medium text-slate-900 dark:text-white">{formatWeight(m.weight)} kg</span>}
+                      {m.body_fat_percentage && <span className="text-slate-500 dark:text-slate-400 ml-2">({m.body_fat_percentage}% BF)</span>}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Goals */}
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Goals</h2>
-                <button
-                  onClick={() => setShowCreateGoal(true)}
-                  className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium"
-                >
-                  + Add Goal
-                </button>
+                  </div>
+                ))}
               </div>
-              
-              {showCreateGoal && (
-                <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-3">
-                  <div>
-                    <label className="label">Goal Type</label>
-                    <select
-                      value={newGoal.goalType}
-                      onChange={(e) => setNewGoal({ ...newGoal, goalType: e.target.value })}
-                      className="input"
-                    >
-                      <option value="">Select goal type...</option>
-                      <option value="weight_loss">Weight Loss</option>
-                      <option value="muscle_gain">Muscle Gain</option>
-                      <option value="body_fat">Body Fat %</option>
-                      <option value="workout_frequency">Workout Frequency</option>
-                      <option value="running_distance">Running Distance</option>
-                      <option value="strength">Strength Goal</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Target Value</label>
-                      <input
-                        type="number"
-                        value={newGoal.targetValue}
-                        onChange={(e) => setNewGoal({ ...newGoal, targetValue: e.target.value })}
-                        className="input"
-                        placeholder="100"
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Unit</label>
-                      <input
-                        type="text"
-                        value={newGoal.unit}
-                        onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })}
-                        className="input"
-                        placeholder="kg, %, km..."
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="label">Deadline (optional)</label>
-                    <input
-                      type="date"
-                      value={newGoal.deadline}
-                      onChange={(e) => setNewGoal({ ...newGoal, deadline: e.target.value })}
-                      className="input"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={createGoal} className="btn-primary text-sm">Create Goal</button>
-                    <button onClick={() => setShowCreateGoal(false)} className="btn-secondary text-sm">Cancel</button>
-                  </div>
-                </div>
-              )}
-              
-              {goals.length === 0 && !showCreateGoal ? (
-                <div className="text-center py-6">
-                  <p className="text-slate-500 dark:text-slate-400 mb-2">No goals set yet</p>
-                  <button
-                    onClick={() => setShowCreateGoal(true)}
-                    className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
-                  >
-                    Create your first goal
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {goals.map((goal) => (
-                    <div key={goal.id} className={`p-4 rounded-xl ${goal.achieved ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-800/50'}`}>
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-slate-900 dark:text-white capitalize">{goal.goal_type.replace(/_/g, ' ')}</span>
-                        {goal.achieved && <span className="text-green-600 dark:text-green-400 text-sm font-medium">✓ Achieved</span>}
-                      </div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        {goal.current_value || 0} / {goal.target_value} {goal.unit}
-                      </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-3">
-                        <div
-                          className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(((goal.current_value || 0) / goal.target_value) * 100, 100)}%` }}
-                        />
-                      </div>
-                      {goal.deadline && (
-                        <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                          Due: {new Date(goal.deadline).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </>
       )}
