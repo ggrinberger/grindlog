@@ -324,7 +324,7 @@ router.post('/exercises/log-by-name', authenticate, async (req: AuthRequest, res
     }
     
     // Find or create exercise
-    let exerciseResult = await query(
+    const exerciseResult = await query(
       `SELECT id FROM exercises WHERE LOWER(name) = LOWER($1) LIMIT 1`,
       [exerciseName]
     );
