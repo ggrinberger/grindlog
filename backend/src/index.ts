@@ -9,6 +9,11 @@ import groupRoutes from './routes/groups.js';
 import progressRoutes from './routes/progress.js';
 import adminRoutes from './routes/admin.js';
 import onboardingRoutes from './routes/onboarding.js';
+import templatesRoutes from './routes/templates.js';
+import routinesRoutes from './routes/routines.js';
+import cardioRoutes from './routes/cardio.js';
+import nutritionRoutes from './routes/nutrition.js';
+import supplementsRoutes from './routes/supplements.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -34,6 +39,11 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/templates', templatesRoutes);
+app.use('/api/routines', routinesRoutes);
+app.use('/api/cardio', cardioRoutes);
+app.use('/api/nutrition', nutritionRoutes);
+app.use('/api/supplements', supplementsRoutes);
 
 // Error handler
 app.use(errorHandler);
