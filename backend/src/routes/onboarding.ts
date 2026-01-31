@@ -196,7 +196,7 @@ router.post('/schedule/:dayOfWeek/exercises', authenticate, async (req: AuthRequ
     const { exerciseId, sets, reps, weight, durationSeconds, intervals, restSeconds, notes } = req.body;
     
     // Get or create schedule day
-    let scheduleResult = await query(
+    const scheduleResult = await query(
       'SELECT id FROM weekly_schedule WHERE user_id = $1 AND day_of_week = $2',
       [req.user!.id, dayOfWeek]
     );
