@@ -8,6 +8,7 @@ import dietRoutes from './routes/diet.js';
 import groupRoutes from './routes/groups.js';
 import progressRoutes from './routes/progress.js';
 import adminRoutes from './routes/admin.js';
+import onboardingRoutes from './routes/onboarding.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -32,6 +33,7 @@ app.use('/api/diet', dietRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
 // Error handler
 app.use(errorHandler);
