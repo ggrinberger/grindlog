@@ -100,6 +100,12 @@ export const progress = {
     api.get('/progress/stats', { params: { days } }),
   getExerciseProgress: (exerciseId: string, limit = 20) =>
     api.get(`/progress/exercise/${exerciseId}`, { params: { limit } }),
+  logExerciseProgress: (exerciseId: string, data: { weight?: number; sets?: number; reps?: number; durationSeconds?: number; distanceMeters?: number; intervals?: number; notes?: string }) =>
+    api.post(`/progress/exercise/${exerciseId}/log`, data),
+  getExerciseHistory: (exerciseId: string, days = 90) =>
+    api.get(`/progress/exercise/${exerciseId}/history`, { params: { days } }),
+  getExercisesOverview: () =>
+    api.get('/progress/exercises/overview'),
 };
 
 // Groups
@@ -141,10 +147,21 @@ export const onboarding = {
   complete: (data: { workoutsSetup?: boolean; menuSetup?: boolean }) =>
     api.post('/onboarding/complete', data),
   getSchedule: () => api.get('/onboarding/schedule'),
+  getFullSchedule: () => api.get('/onboarding/schedule/full'),
   setScheduleDay: (data: { dayOfWeek: number; name: string; planId?: string; isRestDay?: boolean; notes?: string }) =>
     api.post('/onboarding/schedule', data),
   deleteScheduleDay: (dayOfWeek: number) =>
     api.delete(`/onboarding/schedule/${dayOfWeek}`),
+  getDayExercises: (dayOfWeek: number) =>
+    api.get(`/onboarding/schedule/${dayOfWeek}/exercises`),
+  addDayExercise: (dayOfWeek: number, data: { exerciseId: string; sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number; notes?: string }) =>
+    api.post(`/onboarding/schedule/${dayOfWeek}/exercises`, data),
+  updateDayExercise: (exerciseEntryId: string, data: { sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number; notes?: string }) =>
+    api.patch(`/onboarding/schedule/exercises/${exerciseEntryId}`, data),
+  removeDayExercise: (exerciseEntryId: string) =>
+    api.delete(`/onboarding/schedule/exercises/${exerciseEntryId}`),
+  reorderDayExercises: (dayOfWeek: number, exerciseIds: string[]) =>
+    api.patch(`/onboarding/schedule/${dayOfWeek}/reorder`, { exerciseIds }),
   requestAiRecommendation: (type: string, existingData?: unknown) =>
     api.post('/onboarding/ai-recommend', { type, existingData }),
 };

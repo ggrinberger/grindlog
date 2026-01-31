@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { progress } from '../services/api';
+import { progress, workouts } from '../services/api';
 
 interface Measurement {
   id: string;
@@ -18,12 +18,61 @@ interface Goal {
   deadline: string;
 }
 
+interface Exercise {
+  id: string;
+  name: string;
+  category: string;
+  muscle_group: string;
+  is_cardio: boolean;
+}
+
+interface ExerciseProgress {
+  id: string;
+  exercise_id: string;
+  exercise_name: string;
+  category: string;
+  muscle_group: string;
+  is_cardio: boolean;
+  weight: number | null;
+  sets: number | null;
+  reps: number | null;
+  duration_seconds: number | null;
+  distance_meters: number | null;
+  logged_at: string;
+  total_entries: number;
+}
+
+interface HistoryEntry {
+  id: string;
+  weight: number | null;
+  sets: number | null;
+  reps: number | null;
+  duration_seconds: number | null;
+  distance_meters: number | null;
+  logged_at: string;
+}
+
 export default function Progress() {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [exerciseProgress, setExerciseProgress] = useState<ExerciseProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMeasurementForm, setShowMeasurementForm] = useState(false);
   const [newMeasurement, setNewMeasurement] = useState({ weight: '', bodyFatPercentage: '' });
+  const [showLogProgress, setShowLogProgress] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [exerciseHistory, setExerciseHistory] = useState<HistoryEntry[]>([]);
+  const [historyExercise, setHistoryExercise] = useState<{ name: string; is_cardio: boolean } | null>(null);
+  const [newProgress, setNewProgress] = useState({
+    exerciseId: '',
+    weight: '',
+    sets: '',
+    reps: '',
+    durationMinutes: '',
+    distanceKm: '',
+  });
+  const [activeTab, setActiveTab] = useState<'body' | 'exercises'>('exercises');
 
   useEffect(() => {
     fetchData();
@@ -31,12 +80,16 @@ export default function Progress() {
 
   const fetchData = async () => {
     try {
-      const [measurementsRes, goalsRes] = await Promise.all([
+      const [measurementsRes, goalsRes, exercisesRes, progressRes] = await Promise.all([
         progress.getMeasurements(),
         progress.getGoals(),
+        workouts.getExercises(),
+        progress.getExercisesOverview(),
       ]);
       setMeasurements(measurementsRes.data);
       setGoals(goalsRes.data);
+      setExercises(exercisesRes.data);
+      setExerciseProgress(progressRes.data);
     } catch (error) {
       console.error('Failed to fetch progress data:', error);
     } finally {
@@ -58,6 +111,89 @@ export default function Progress() {
     }
   };
 
+  const logExerciseProgress = async () => {
+    if (!selectedExercise) return;
+    
+    try {
+      const data = selectedExercise.is_cardio
+        ? {
+            durationSeconds: parseFloat(newProgress.durationMinutes) * 60 || undefined,
+            distanceMeters: parseFloat(newProgress.distanceKm) * 1000 || undefined,
+          }
+        : {
+            weight: parseFloat(newProgress.weight) || undefined,
+            sets: parseInt(newProgress.sets) || undefined,
+            reps: parseInt(newProgress.reps) || undefined,
+          };
+      
+      await progress.logExerciseProgress(selectedExercise.id, data);
+      setShowLogProgress(false);
+      setSelectedExercise(null);
+      setNewProgress({ exerciseId: '', weight: '', sets: '', reps: '', durationMinutes: '', distanceKm: '' });
+      fetchData();
+    } catch (error) {
+      console.error('Failed to log exercise progress:', error);
+    }
+  };
+
+  const viewExerciseHistory = async (exerciseId: string) => {
+    try {
+      const res = await progress.getExerciseHistory(exerciseId);
+      setHistoryExercise(res.data.exercise);
+      setExerciseHistory(res.data.history);
+    } catch (error) {
+      console.error('Failed to fetch exercise history:', error);
+    }
+  };
+
+  const formatDuration = (seconds: number | null): string => {
+    if (!seconds) return '—';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return secs > 0 ? `${mins}:${secs.toString().padStart(2, '0')}` : `${mins} min`;
+  };
+
+  // Simple chart rendering using CSS
+  const renderChart = (data: HistoryEntry[], isCardio: boolean) => {
+    if (data.length === 0) return null;
+    
+    const values = isCardio
+      ? data.map(d => d.duration_seconds || 0)
+      : data.map(d => d.weight || 0);
+    
+    const maxVal = Math.max(...values);
+    const minVal = Math.min(...values.filter(v => v > 0));
+    const range = maxVal - minVal || 1;
+
+    return (
+      <div className="mt-4">
+        <div className="flex items-end gap-1 h-32 bg-slate-50 rounded-xl p-3">
+          {data.slice(-20).map((entry) => {
+            const value = isCardio ? (entry.duration_seconds || 0) : (entry.weight || 0);
+            const height = ((value - minVal) / range) * 100 + 10;
+            return (
+              <div
+                key={entry.id}
+                className="flex-1 min-w-2 bg-emerald-500 rounded-t hover:bg-emerald-600 transition-colors relative group"
+                style={{ height: `${height}%` }}
+              >
+                <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">
+                  {isCardio ? formatDuration(entry.duration_seconds) : `${entry.weight}kg`}
+                  <br />
+                  <span className="text-slate-300">{new Date(entry.logged_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex justify-between text-xs text-slate-400 mt-1">
+          <span>{data.length > 0 ? new Date(data[0].logged_at).toLocaleDateString() : ''}</span>
+          <span>{data.length > 0 ? new Date(data[data.length - 1].logged_at).toLocaleDateString() : ''}</span>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>;
   }
@@ -70,41 +206,148 @@ export default function Progress() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Progress</h1>
-        <button onClick={() => setShowMeasurementForm(true)} className="btn-primary">
-          + Log Measurement
+        <div className="flex gap-2">
+          <button onClick={() => setShowLogProgress(true)} className="btn-primary">
+            + Log Exercise
+          </button>
+          <button onClick={() => setShowMeasurementForm(true)} className="btn-secondary">
+            + Body Stats
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('exercises')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'exercises'
+              ? 'text-emerald-600 border-b-2 border-emerald-600'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Exercise Progress
+        </button>
+        <button
+          onClick={() => setActiveTab('body')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'body'
+              ? 'text-emerald-600 border-b-2 border-emerald-600'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Body Measurements
         </button>
       </div>
 
-      {/* Current Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card text-center">
-          <div className="text-sm text-gray-500">Current Weight</div>
-          <div className="text-4xl font-bold text-purple-600">
-            {latestWeight ? `${latestWeight} kg` : '—'}
-          </div>
-          {weightChange && (
-            <div className={`text-sm ${parseFloat(weightChange) < 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {parseFloat(weightChange) > 0 ? '+' : ''}{weightChange} kg from last
+      {/* Log Exercise Progress Modal */}
+      {showLogProgress && (
+        <div className="card">
+          <h3 className="font-semibold mb-4">Log Exercise Progress</h3>
+          
+          {!selectedExercise ? (
+            <div>
+              <label className="label">Select Exercise</label>
+              <select
+                className="input w-full"
+                value=""
+                onChange={(e) => {
+                  const ex = exercises.find(x => x.id === e.target.value);
+                  if (ex) setSelectedExercise(ex);
+                }}
+              >
+                <option value="">Choose an exercise...</option>
+                {exercises.map(ex => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.name} {ex.is_cardio ? '(Cardio)' : `(${ex.muscle_group || ex.category})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <span className="font-medium">{selectedExercise.name}</span>
+                  <span className={`ml-2 text-xs px-2 py-0.5 rounded ${selectedExercise.is_cardio ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                    {selectedExercise.is_cardio ? 'Cardio' : 'Strength'}
+                  </span>
+                </div>
+                <button onClick={() => setSelectedExercise(null)} className="text-sm text-slate-500">Change</button>
+              </div>
+              
+              {selectedExercise.is_cardio ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Duration (minutes)</label>
+                    <input
+                      type="number"
+                      value={newProgress.durationMinutes}
+                      onChange={(e) => setNewProgress({ ...newProgress, durationMinutes: e.target.value })}
+                      className="input"
+                      placeholder="30"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Distance (km)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={newProgress.distanceKm}
+                      onChange={(e) => setNewProgress({ ...newProgress, distanceKm: e.target.value })}
+                      className="input"
+                      placeholder="5.0"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="label">Weight (kg)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={newProgress.weight}
+                      onChange={(e) => setNewProgress({ ...newProgress, weight: e.target.value })}
+                      className="input"
+                      placeholder="80"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Sets</label>
+                    <input
+                      type="number"
+                      value={newProgress.sets}
+                      onChange={(e) => setNewProgress({ ...newProgress, sets: e.target.value })}
+                      className="input"
+                      placeholder="4"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Reps</label>
+                    <input
+                      type="number"
+                      value={newProgress.reps}
+                      onChange={(e) => setNewProgress({ ...newProgress, reps: e.target.value })}
+                      className="input"
+                      placeholder="8"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
-        <div className="card text-center">
-          <div className="text-sm text-gray-500">Body Fat</div>
-          <div className="text-4xl font-bold text-orange-600">
-            {measurements[0]?.body_fat_percentage ? `${measurements[0].body_fat_percentage}%` : '—'}
+          
+          <div className="flex gap-4 mt-4">
+            <button onClick={logExerciseProgress} className="btn-primary" disabled={!selectedExercise}>Log Progress</button>
+            <button onClick={() => { setShowLogProgress(false); setSelectedExercise(null); }} className="btn-secondary">Cancel</button>
           </div>
         </div>
-        <div className="card text-center">
-          <div className="text-sm text-gray-500">Active Goals</div>
-          <div className="text-4xl font-bold text-emerald-600">
-            {goals.filter(g => !g.achieved).length}
-          </div>
-        </div>
-      </div>
+      )}
 
       {showMeasurementForm && (
         <div className="card">
-          <h3 className="font-semibold mb-4">Log Measurement</h3>
+          <h3 className="font-semibold mb-4">Log Body Measurement</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Weight (kg)</label>
@@ -134,57 +377,181 @@ export default function Progress() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Measurement History */}
-        <div className="card">
-          <h2 className="text-lg font-semibold mb-4">Measurement History</h2>
-          {measurements.length === 0 ? (
-            <p className="text-gray-500">No measurements yet.</p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {measurements.map((m) => (
-                <div key={m.id} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
-                  <span className="text-sm text-gray-500">
-                    {new Date(m.measured_at).toLocaleDateString()}
-                  </span>
-                  <div className="text-right">
-                    {m.weight && <span className="font-medium">{m.weight} kg</span>}
-                    {m.body_fat_percentage && <span className="text-gray-500 ml-2">({m.body_fat_percentage}% BF)</span>}
-                  </div>
-                </div>
-              ))}
+      {activeTab === 'exercises' && (
+        <>
+          {/* Exercise History Chart */}
+          {historyExercise && exerciseHistory.length > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-slate-900">{historyExercise.name} Progress</h3>
+                <button onClick={() => { setHistoryExercise(null); setExerciseHistory([]); }} className="text-sm text-slate-500">Close</button>
+              </div>
+              <div className="text-sm text-slate-500 mb-4">
+                {exerciseHistory.length} entries • Last {historyExercise.is_cardio 
+                  ? formatDuration(exerciseHistory[exerciseHistory.length - 1]?.duration_seconds)
+                  : `${exerciseHistory[exerciseHistory.length - 1]?.weight}kg`
+                }
+              </div>
+              {renderChart(exerciseHistory, historyExercise.is_cardio)}
             </div>
           )}
-        </div>
 
-        {/* Goals */}
-        <div className="card">
-          <h2 className="text-lg font-semibold mb-4">Goals</h2>
-          {goals.length === 0 ? (
-            <p className="text-gray-500">No goals set yet.</p>
+          {/* Exercise Progress Cards */}
+          {exerciseProgress.length === 0 ? (
+            <div className="card text-center py-12">
+              <div className="text-4xl mb-2">📈</div>
+              <div className="text-lg font-medium text-slate-700">No exercise progress logged yet</div>
+              <div className="text-slate-500 mt-1">Start logging your workouts to track progress</div>
+              <button onClick={() => setShowLogProgress(true)} className="btn-primary mt-4">Log First Exercise</button>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {goals.map((goal) => (
-                <div key={goal.id} className={`p-3 rounded-lg ${goal.achieved ? 'bg-green-50' : 'bg-gray-50'}`}>
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium capitalize">{goal.goal_type.replace('_', ' ')}</span>
-                    {goal.achieved && <span className="text-green-600">✓ Achieved</span>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {exerciseProgress.map((ep) => (
+                <div
+                  key={ep.id}
+                  className="card hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => viewExerciseHistory(ep.exercise_id)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-medium text-slate-900">{ep.exercise_name}</div>
+                      <div className="text-sm text-slate-500">{ep.muscle_group || ep.category}</div>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded ${ep.is_cardio ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                      {ep.is_cardio ? 'Cardio' : 'Strength'}
+                    </span>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    {goal.current_value || 0} / {goal.target_value} {goal.unit}
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div
-                      className="bg-emerald-500 h-2 rounded-full"
-                      style={{ width: `${Math.min(((goal.current_value || 0) / goal.target_value) * 100, 100)}%` }}
-                    />
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    {ep.is_cardio ? (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-bold text-emerald-600">{formatDuration(ep.duration_seconds)}</span>
+                        {ep.distance_meters && (
+                          <span className="text-slate-500">• {(ep.distance_meters / 1000).toFixed(1)}km</span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-bold text-emerald-600">{ep.weight}kg</span>
+                        <span className="text-slate-500">• {ep.sets}×{ep.reps}</span>
+                      </div>
+                    )}
+                    <div className="text-xs text-slate-400 mt-1">
+                      {ep.total_entries} entries • Last: {new Date(ep.logged_at).toLocaleDateString()}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
+
+      {activeTab === 'body' && (
+        <>
+          {/* Current Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="card text-center">
+              <div className="text-sm text-gray-500">Current Weight</div>
+              <div className="text-4xl font-bold text-purple-600">
+                {latestWeight ? `${latestWeight} kg` : '—'}
+              </div>
+              {weightChange && (
+                <div className={`text-sm ${parseFloat(weightChange) < 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {parseFloat(weightChange) > 0 ? '+' : ''}{weightChange} kg from last
+                </div>
+              )}
+            </div>
+            <div className="card text-center">
+              <div className="text-sm text-gray-500">Body Fat</div>
+              <div className="text-4xl font-bold text-orange-600">
+                {measurements[0]?.body_fat_percentage ? `${measurements[0].body_fat_percentage}%` : '—'}
+              </div>
+            </div>
+            <div className="card text-center">
+              <div className="text-sm text-gray-500">Active Goals</div>
+              <div className="text-4xl font-bold text-emerald-600">
+                {goals.filter(g => !g.achieved).length}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Measurement History */}
+            <div className="card">
+              <h2 className="text-lg font-semibold mb-4">Weight History</h2>
+              {measurements.filter(m => m.weight).length === 0 ? (
+                <p className="text-gray-500">No measurements yet.</p>
+              ) : (
+                <>
+                  {/* Weight Chart */}
+                  <div className="flex items-end gap-1 h-32 bg-slate-50 rounded-xl p-3 mb-4">
+                    {measurements.filter(m => m.weight).slice(0, 20).reverse().map((m) => {
+                      const weights = measurements.filter(x => x.weight).map(x => x.weight);
+                      const maxW = Math.max(...weights);
+                      const minW = Math.min(...weights);
+                      const range = maxW - minW || 1;
+                      const height = ((m.weight - minW) / range) * 100 + 10;
+                      return (
+                        <div
+                          key={m.id}
+                          className="flex-1 min-w-2 bg-purple-500 rounded-t hover:bg-purple-600 transition-colors relative group"
+                          style={{ height: `${height}%` }}
+                        >
+                          <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">
+                            {m.weight}kg<br />
+                            <span className="text-slate-300">{new Date(m.measured_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {measurements.slice(0, 10).map((m) => (
+                      <div key={m.id} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
+                        <span className="text-sm text-gray-500">
+                          {new Date(m.measured_at).toLocaleDateString()}
+                        </span>
+                        <div className="text-right">
+                          {m.weight && <span className="font-medium">{m.weight} kg</span>}
+                          {m.body_fat_percentage && <span className="text-gray-500 ml-2">({m.body_fat_percentage}% BF)</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Goals */}
+            <div className="card">
+              <h2 className="text-lg font-semibold mb-4">Goals</h2>
+              {goals.length === 0 ? (
+                <p className="text-gray-500">No goals set yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {goals.map((goal) => (
+                    <div key={goal.id} className={`p-3 rounded-lg ${goal.achieved ? 'bg-green-50' : 'bg-gray-50'}`}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium capitalize">{goal.goal_type.replace('_', ' ')}</span>
+                        {goal.achieved && <span className="text-green-600">✓ Achieved</span>}
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {goal.current_value || 0} / {goal.target_value} {goal.unit}
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                        <div
+                          className="bg-emerald-500 h-2 rounded-full"
+                          style={{ width: `${Math.min(((goal.current_value || 0) / goal.target_value) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

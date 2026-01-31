@@ -200,6 +200,72 @@ CREATE TABLE IF NOT EXISTS sharing_settings (
     UNIQUE(user_id, group_id)
 );
 
+-- User profile fields for onboarding
+ALTER TABLE users ADD COLUMN IF NOT EXISTS height_cm DECIMAL(5,2);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS fitness_goal VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS experience_level VARCHAR(20);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS workouts_setup BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS menu_setup BOOLEAN DEFAULT false;
+
+-- Weekly workout schedule
+CREATE TABLE IF NOT EXISTS weekly_schedule (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+    name VARCHAR(100) NOT NULL,
+    plan_id UUID REFERENCES workout_plans(id) ON DELETE SET NULL,
+    is_rest_day BOOLEAN DEFAULT false,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, day_of_week)
+);
+
+-- Schedule day exercises - stores exercises assigned to each day
+CREATE TABLE IF NOT EXISTS schedule_day_exercises (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    schedule_id UUID NOT NULL REFERENCES weekly_schedule(id) ON DELETE CASCADE,
+    exercise_id UUID NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    sets INTEGER NOT NULL DEFAULT 3,
+    reps INTEGER NOT NULL DEFAULT 10,
+    weight DECIMAL(6,2),
+    duration_seconds INTEGER,
+    intervals INTEGER,
+    rest_seconds INTEGER,
+    notes TEXT,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Exercise progress tracking
+CREATE TABLE IF NOT EXISTS exercise_progress (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    exercise_id UUID NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    weight DECIMAL(6,2),
+    sets INTEGER,
+    reps INTEGER,
+    duration_seconds INTEGER,
+    distance_meters DECIMAL(10,2),
+    intervals INTEGER,
+    notes TEXT,
+    logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AI recommendation requests
+CREATE TABLE IF NOT EXISTS ai_recommendations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('workout', 'diet', 'review')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'dismissed')),
+    request_data JSONB,
+    response_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_date ON workout_sessions(user_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_exercise_logs_session ON exercise_logs(session_id);
@@ -208,3 +274,10 @@ CREATE INDEX IF NOT EXISTS idx_cardio_sessions_user_date ON cardio_sessions(user
 CREATE INDEX IF NOT EXISTS idx_body_measurements_user_date ON body_measurements(user_id, measured_at);
 CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_weekly_schedule_user ON weekly_schedule(user_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_day_exercises_schedule ON schedule_day_exercises(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_day_exercises_exercise ON schedule_day_exercises(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_user ON ai_recommendations(user_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_progress_user ON exercise_progress(user_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_progress_exercise ON exercise_progress(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_progress_date ON exercise_progress(user_id, exercise_id, logged_at);

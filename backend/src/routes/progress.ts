@@ -190,4 +190,87 @@ router.get('/exercise/:exerciseId', authenticate, async (req: AuthRequest, res: 
   }
 });
 
+// Log exercise progress (standalone, outside of workout sessions)
+router.post('/exercise/:exerciseId/log', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { exerciseId } = req.params;
+    const { weight, sets, reps, durationSeconds, distanceMeters, intervals, notes } = req.body;
+    
+    const result = await query(
+      `INSERT INTO exercise_progress 
+        (user_id, exercise_id, weight, sets, reps, duration_seconds, distance_meters, intervals, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [req.user!.id, exerciseId, weight, sets, reps, durationSeconds, distanceMeters, intervals, notes]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get exercise progress history (for charts)
+router.get('/exercise/:exerciseId/history', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { exerciseId } = req.params;
+    const { days = 90 } = req.query;
+    
+    // Get exercise info to determine if it's cardio
+    const exerciseResult = await query(
+      'SELECT name, is_cardio FROM exercises WHERE id = $1',
+      [exerciseId]
+    );
+    
+    if (exerciseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+    
+    const exercise = exerciseResult.rows[0];
+    
+    // Get progress entries
+    const result = await query(
+      `SELECT * FROM exercise_progress
+       WHERE user_id = $1 AND exercise_id = $2 AND logged_at >= NOW() - INTERVAL '1 day' * $3
+       ORDER BY logged_at ASC`,
+      [req.user!.id, exerciseId, days]
+    );
+    
+    res.json({
+      exercise,
+      history: result.rows,
+      summary: exercise.is_cardio ? {
+        totalDuration: result.rows.reduce((sum, r) => sum + (r.duration_seconds || 0), 0),
+        totalDistance: result.rows.reduce((sum, r) => sum + parseFloat(r.distance_meters || 0), 0),
+        sessions: result.rows.length,
+      } : {
+        maxWeight: Math.max(...result.rows.map(r => parseFloat(r.weight) || 0)),
+        totalSets: result.rows.reduce((sum, r) => sum + (r.sets || 0), 0),
+        sessions: result.rows.length,
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get all exercises with their latest progress
+router.get('/exercises/overview', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const result = await query(
+      `SELECT DISTINCT ON (ep.exercise_id) 
+        ep.*, e.name as exercise_name, e.category, e.muscle_group, e.is_cardio,
+        (SELECT COUNT(*) FROM exercise_progress WHERE exercise_id = ep.exercise_id AND user_id = $1) as total_entries
+       FROM exercise_progress ep
+       JOIN exercises e ON ep.exercise_id = e.id
+       WHERE ep.user_id = $1
+       ORDER BY ep.exercise_id, ep.logged_at DESC`,
+      [req.user!.id]
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
