@@ -441,13 +441,7 @@ export default function Progress() {
               
               <div className="h-64 chart-container rounded-xl">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={getChartData(exerciseHistory, historyExercise.is_cardio)}>
-                    <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={chartColors.primary} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={chartColors.primary} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
+                  <LineChart data={getChartData(exerciseHistory, historyExercise.is_cardio)}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                     <XAxis 
                       dataKey="date" 
@@ -457,18 +451,26 @@ export default function Progress() {
                     <YAxis 
                       tick={{ fill: chartColors.text, fontSize: 12 }}
                       axisLine={{ stroke: chartColors.grid }}
-                      unit={historyExercise.is_cardio ? ' min' : ' kg'}
                       domain={['dataMin - 2', 'dataMax + 2']}
+                      unit={historyExercise.is_cardio ? ' min' : ' kg'}
                     />
-                    <Tooltip content={<CustomTooltip isCardio={historyExercise.is_cardio} />} />
-                    <Area 
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: chartColors.tooltipBg, 
+                        border: `1px solid ${chartColors.grid}`,
+                        borderRadius: '8px',
+                      }}
+                      labelStyle={{ color: chartColors.text }}
+                    />
+                    <Line 
                       type="monotone" 
                       dataKey="value" 
                       stroke={chartColors.primary} 
                       strokeWidth={2}
-                      fill="url(#colorValue)" 
+                      dot={{ fill: chartColors.primary, strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: chartColors.primary, strokeWidth: 2 }}
                     />
-                  </AreaChart>
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
