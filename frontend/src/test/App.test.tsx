@@ -27,9 +27,9 @@ describe('Login Page', () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByLabelText('Email')).toBeInTheDocument();
-    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /grindlog/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
@@ -40,7 +40,7 @@ describe('Login Page', () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByText('Sign up')).toHaveAttribute('href', '/register');
+    expect(screen.getByText('Create one')).toHaveAttribute('href', '/register');
   });
 });
 
