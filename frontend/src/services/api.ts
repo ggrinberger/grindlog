@@ -109,6 +109,10 @@ export const progress = {
     api.get(`/progress/exercise/${exerciseId}/history`, { params: { days } }),
   getExercisesOverview: () =>
     api.get('/progress/exercises/overview'),
+  getLastWeights: (exerciseNames: string[]) =>
+    api.post('/progress/exercises/last-weights', { exerciseNames }),
+  logExerciseByName: (data: { exerciseName: string; weight?: number; sets?: number; reps?: number; notes?: string; category?: string; muscleGroup?: string }) =>
+    api.post('/progress/exercises/log-by-name', data),
 };
 
 // Groups
