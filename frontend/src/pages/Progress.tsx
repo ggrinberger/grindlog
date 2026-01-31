@@ -190,7 +190,7 @@ export default function Progress() {
   };
 
   // Custom tooltip
-  const CustomTooltip = ({ active, payload, label, isCardio }: any) => {
+  const CustomTooltip = ({ active, payload, label, isCardio }: { active?: boolean; payload?: Array<{ value: number }>; label?: string; isCardio?: boolean }) => {
     if (active && payload && payload.length) {
       return (
         <div className={`px-3 py-2 rounded-lg shadow-lg border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
