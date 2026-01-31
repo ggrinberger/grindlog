@@ -68,7 +68,7 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1 className="page-title">{greeting()}, {user?.displayName || user?.username}!</h1>
-          <p className="text-slate-500 mt-1">Here's your fitness overview for the last 30 days.</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Here's your fitness overview for the last 30 days.</p>
         </div>
       </div>
 
@@ -77,30 +77,30 @@ export default function Dashboard() {
         <div className="stat-card">
           <div className="stat-icon stat-icon-emerald">🏋️</div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">
+            <div className="text-2xl font-bold text-slate-900 dark:text-white">
               {stats?.workouts.workout_count || 0}
             </div>
-            <div className="text-sm text-slate-500">Workouts</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Workouts</div>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-icon stat-icon-blue">🏃</div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">
+            <div className="text-2xl font-bold text-slate-900 dark:text-white">
               {parseFloat(stats?.cardio.total_distance || '0').toFixed(1)} km
             </div>
-            <div className="text-sm text-slate-500">Distance</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Distance</div>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-icon stat-icon-purple">⚖️</div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">
+            <div className="text-2xl font-bold text-slate-900 dark:text-white">
               {stats?.weight.current ? `${stats.weight.current}` : '—'}
             </div>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-slate-500 dark:text-slate-400">
               {stats?.weight.change && (
                 <span className={parseFloat(stats.weight.change) < 0 ? 'text-emerald-500' : 'text-orange-500'}>
                   {parseFloat(stats.weight.change) > 0 ? '+' : ''}{stats.weight.change} kg
@@ -114,10 +114,10 @@ export default function Dashboard() {
         <div className="stat-card">
           <div className="stat-icon stat-icon-orange">🔥</div>
           <div>
-            <div className="text-2xl font-bold text-slate-900">
+            <div className="text-2xl font-bold text-slate-900 dark:text-white">
               {Math.round(parseFloat(stats?.nutrition.avg_daily_calories || '0'))}
             </div>
-            <div className="text-sm text-slate-500">Avg. calories</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Avg. calories</div>
           </div>
         </div>
       </div>
@@ -125,35 +125,35 @@ export default function Dashboard() {
       {/* Today's Nutrition */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">Today's Nutrition</h2>
-          <Link to="/diet" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Today's Nutrition</h2>
+          <Link to="/diet" className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium">
             View details →
           </Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-slate-50 rounded-xl p-4 text-center">
-            <div className="text-3xl font-bold text-slate-900">
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 text-center">
+            <div className="text-3xl font-bold text-slate-900 dark:text-white">
               {Math.round(parseFloat(todayDiet?.total_calories || '0'))}
             </div>
-            <div className="text-sm text-slate-500 mt-1">Calories</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Calories</div>
           </div>
-          <div className="bg-red-50 rounded-xl p-4 text-center">
-            <div className="text-3xl font-bold text-red-600">
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center">
+            <div className="text-3xl font-bold text-red-600 dark:text-red-400">
               {Math.round(parseFloat(todayDiet?.total_protein || '0'))}g
             </div>
-            <div className="text-sm text-slate-500 mt-1">Protein</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Protein</div>
           </div>
-          <div className="bg-amber-50 rounded-xl p-4 text-center">
-            <div className="text-3xl font-bold text-amber-600">
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-center">
+            <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">
               {Math.round(parseFloat(todayDiet?.total_carbs || '0'))}g
             </div>
-            <div className="text-sm text-slate-500 mt-1">Carbs</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Carbs</div>
           </div>
-          <div className="bg-blue-50 rounded-xl p-4 text-center">
-            <div className="text-3xl font-bold text-blue-600">
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-center">
+            <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
               {Math.round(parseFloat(todayDiet?.total_fat || '0'))}g
             </div>
-            <div className="text-sm text-slate-500 mt-1">Fat</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">Fat</div>
           </div>
         </div>
       </div>
@@ -162,34 +162,34 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link to="/workouts" className="card card-hover group">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               🏋️
             </div>
             <div>
-              <div className="font-semibold text-slate-900">Start Workout</div>
-              <div className="text-sm text-slate-500">Log your training</div>
+              <div className="font-semibold text-slate-900 dark:text-white">Start Workout</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">Log your training</div>
             </div>
           </div>
         </Link>
         <Link to="/diet" className="card card-hover group">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               🥗
             </div>
             <div>
-              <div className="font-semibold text-slate-900">Log Meal</div>
-              <div className="text-sm text-slate-500">Track nutrition</div>
+              <div className="font-semibold text-slate-900 dark:text-white">Log Meal</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">Track nutrition</div>
             </div>
           </div>
         </Link>
         <Link to="/progress" className="card card-hover group">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               📈
             </div>
             <div>
-              <div className="font-semibold text-slate-900">Track Progress</div>
-              <div className="text-sm text-slate-500">Log measurements</div>
+              <div className="font-semibold text-slate-900 dark:text-white">Track Progress</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">Log measurements</div>
             </div>
           </div>
         </Link>
