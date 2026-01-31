@@ -43,27 +43,34 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-emerald-600">💪 GrindLog</h1>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Create account</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Start tracking your fitness journey
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
+        {/* Logo & Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-xl shadow-emerald-500/30 mb-4">
+            <span className="text-3xl">💪</span>
+          </div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+            Join GrindLog
+          </h1>
+          <p className="mt-2 text-slate-500">
+            Start tracking your fitness journey today
           </p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+        {/* Register Card */}
+        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm flex items-center gap-2">
+                <span>⚠️</span>
+                {error}
+              </div>
+            )}
 
-          <div className="space-y-4">
             <div>
               <label htmlFor="email" className="label">
-                Email
+                Email address
               </label>
               <input
                 id="email"
@@ -76,35 +83,37 @@ export default function Register() {
               />
             </div>
 
-            <div>
-              <label htmlFor="username" className="label">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                required
-                minLength={3}
-                maxLength={50}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="input"
-                placeholder="johndoe"
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="username" className="label">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  required
+                  minLength={3}
+                  maxLength={50}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="input"
+                  placeholder="johndoe"
+                />
+              </div>
 
-            <div>
-              <label htmlFor="displayName" className="label">
-                Display Name (optional)
-              </label>
-              <input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="input"
-                placeholder="John Doe"
-              />
+              <div>
+                <label htmlFor="displayName" className="label">
+                  Display name
+                </label>
+                <input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="input"
+                  placeholder="John Doe"
+                />
+              </div>
             </div>
 
             <div>
@@ -119,13 +128,13 @@ export default function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
-                placeholder="••••••••"
+                placeholder="Min. 6 characters"
               />
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="label">
-                Confirm Password
+                Confirm password
               </label>
               <input
                 id="confirmPassword"
@@ -137,23 +146,32 @@ export default function Register() {
                 placeholder="••••••••"
               />
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full btn-primary flex items-center justify-center gap-2 mt-6"
+            >
+              {loading ? (
+                <>
+                  <div className="spinner"></div>
+                  Creating account...
+                </>
+              ) : (
+                'Create account'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-500">
+              Already have an account?{' '}
+              <Link to="/login" className="text-emerald-600 hover:text-emerald-700 font-semibold">
+                Sign in
+              </Link>
+            </p>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full btn-primary disabled:opacity-50"
-          >
-            {loading ? 'Creating account...' : 'Create account'}
-          </button>
-
-          <p className="text-center text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Sign in
-            </Link>
-          </p>
-        </form>
+        </div>
       </div>
     </div>
   );
