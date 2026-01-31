@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { progress, workouts } from '../services/api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useThemeStore } from '../store/themeStore';
 import { formatWeight } from '../utils/format';
 
@@ -208,21 +208,6 @@ export default function Progress() {
         bodyFat: m.body_fat_percentage,
         fullDate: new Date(m.measured_at).toLocaleDateString(),
       }));
-  };
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label, isCardio }: { active?: boolean; payload?: Array<{ value: number }>; label?: string; isCardio?: boolean }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className={`px-3 py-2 rounded-lg shadow-lg border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-          <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {isCardio ? `${payload[0].value} min` : `${payload[0].value} kg`}
-          </p>
-          <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</p>
-        </div>
-      );
-    }
-    return null;
   };
 
   if (loading) {
