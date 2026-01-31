@@ -29,27 +29,34 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-emerald-600">💪 GrindLog</h1>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Sign in</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Track your fitness journey
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
+        {/* Logo & Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-xl shadow-emerald-500/30 mb-4">
+            <span className="text-3xl">💪</span>
+          </div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+            GrindLog
+          </h1>
+          <p className="mt-2 text-slate-500">
+            Welcome back! Sign in to continue.
           </p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+        {/* Login Card */}
+        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm flex items-center gap-2">
+                <span>⚠️</span>
+                {error}
+              </div>
+            )}
 
-          <div className="space-y-4">
             <div>
               <label htmlFor="email" className="label">
-                Email
+                Email address
               </label>
               <input
                 id="email"
@@ -76,23 +83,37 @@ export default function Login() {
                 placeholder="••••••••"
               />
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full btn-primary flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <div className="spinner"></div>
+                  Signing in...
+                </>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-500">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-emerald-600 hover:text-emerald-700 font-semibold">
+                Create one
+              </Link>
+            </p>
           </div>
+        </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full btn-primary disabled:opacity-50"
-          >
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-
-          <p className="text-center text-sm text-gray-600">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Sign up
-            </Link>
-          </p>
-        </form>
+        {/* Footer */}
+        <p className="mt-8 text-center text-xs text-slate-400">
+          Track your fitness journey with GrindLog
+        </p>
       </div>
     </div>
   );
