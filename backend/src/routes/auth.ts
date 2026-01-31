@@ -97,7 +97,7 @@ router.post(
         { expiresIn: '7d' }
       );
 
-      const { password_hash, ...userWithoutPassword } = user;
+      const { password_hash: _password_hash, ...userWithoutPassword } = user;
       res.json({ user: userWithoutPassword, token });
     } catch (error) {
       next(error);
