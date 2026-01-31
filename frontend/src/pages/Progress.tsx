@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { progress, workouts } from '../services/api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useThemeStore } from '../store/themeStore';
 import { formatWeight } from '../utils/format';
 
@@ -196,6 +196,16 @@ export default function Progress() {
     }));
   };
 
+  // Compute Y-axis domain for exercise chart
+  const getExerciseChartDomain = (data: HistoryEntry[], isCardio: boolean): [number, number] => {
+    const values = data.map(entry => 
+      isCardio ? Math.round((entry.duration_seconds || 0) / 60) : entry.weight || 0
+    );
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return [Math.floor(min - 2), Math.ceil(max + 2)];
+  };
+
   // Format weight chart data
   const getWeightChartData = () => {
     return measurements
@@ -208,21 +218,6 @@ export default function Progress() {
         bodyFat: m.body_fat_percentage,
         fullDate: new Date(m.measured_at).toLocaleDateString(),
       }));
-  };
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label, isCardio }: { active?: boolean; payload?: Array<{ value: number }>; label?: string; isCardio?: boolean }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className={`px-3 py-2 rounded-lg shadow-lg border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-          <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {isCardio ? `${payload[0].value} min` : `${payload[0].value} kg`}
-          </p>
-          <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</p>
-        </div>
-      );
-    }
-    return null;
   };
 
   if (loading) {
@@ -441,13 +436,7 @@ export default function Progress() {
               
               <div className="h-64 chart-container rounded-xl">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={getChartData(exerciseHistory, historyExercise.is_cardio)}>
-                    <defs>
-                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={chartColors.primary} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={chartColors.primary} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
+                  <LineChart data={getChartData(exerciseHistory, historyExercise.is_cardio)}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                     <XAxis 
                       dataKey="date" 
@@ -457,18 +446,28 @@ export default function Progress() {
                     <YAxis 
                       tick={{ fill: chartColors.text, fontSize: 12 }}
                       axisLine={{ stroke: chartColors.grid }}
+                      domain={getExerciseChartDomain(exerciseHistory, historyExercise.is_cardio)}
                       unit={historyExercise.is_cardio ? ' min' : ' kg'}
-                      domain={['dataMin - 5', 'dataMax + 5']}
+                      type="number"
+                      scale="linear"
                     />
-                    <Tooltip content={<CustomTooltip isCardio={historyExercise.is_cardio} />} />
-                    <Area 
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: chartColors.tooltipBg, 
+                        border: `1px solid ${chartColors.grid}`,
+                        borderRadius: '8px',
+                      }}
+                      labelStyle={{ color: chartColors.text }}
+                    />
+                    <Line 
                       type="monotone" 
                       dataKey="value" 
                       stroke={chartColors.primary} 
                       strokeWidth={2}
-                      fill="url(#colorValue)" 
+                      dot={{ fill: chartColors.primary, strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: chartColors.primary, strokeWidth: 2 }}
                     />
-                  </AreaChart>
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
