@@ -44,6 +44,9 @@ export const users = {
   getMe: () => api.get('/users/me'),
   updateMe: (data: { displayName?: string; avatarUrl?: string }) =>
     api.patch('/users/me', data),
+  getProfile: () => api.get('/users/me/profile'),
+  updateProfile: (data: { displayName?: string; avatarUrl?: string; heightCm?: number; fitnessGoal?: string; experienceLevel?: string; weight?: number }) =>
+    api.patch('/users/me/profile', data),
 };
 
 // Workouts

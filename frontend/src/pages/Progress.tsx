@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { progress, workouts } from '../services/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useThemeStore } from '../store/themeStore';
+import { formatWeight } from '../utils/format';
 
 interface Measurement {
   id: string;
@@ -76,6 +77,8 @@ export default function Progress() {
     distanceKm: '',
   });
   const [activeTab, setActiveTab] = useState<'body' | 'exercises'>('exercises');
+  const [showCreateGoal, setShowCreateGoal] = useState(false);
+  const [newGoal, setNewGoal] = useState({ goalType: '', targetValue: '', unit: '', deadline: '' });
 
   // Chart colors based on theme
   const chartColors = {
@@ -121,6 +124,24 @@ export default function Progress() {
       fetchData();
     } catch (error) {
       console.error('Failed to log measurement:', error);
+    }
+  };
+
+  const createGoal = async () => {
+    if (!newGoal.goalType || !newGoal.targetValue) return;
+    
+    try {
+      await progress.createGoal({
+        goalType: newGoal.goalType,
+        targetValue: parseFloat(newGoal.targetValue),
+        unit: newGoal.unit || 'units',
+        deadline: newGoal.deadline || undefined,
+      });
+      setShowCreateGoal(false);
+      setNewGoal({ goalType: '', targetValue: '', unit: '', deadline: '' });
+      fetchData();
+    } catch (error) {
+      console.error('Failed to create goal:', error);
     }
   };
 
@@ -488,7 +509,7 @@ export default function Progress() {
                       </>
                     ) : (
                       <>
-                        <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{ep.weight}kg</span>
+                        <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{formatWeight(ep.weight)}kg</span>
                         <span className="text-slate-500 dark:text-slate-400">• {ep.sets}×{ep.reps}</span>
                       </>
                     )}
@@ -593,7 +614,7 @@ export default function Progress() {
                         {new Date(m.measured_at).toLocaleDateString()}
                       </span>
                       <div className="text-right">
-                        {m.weight && <span className="font-medium text-slate-900 dark:text-white">{m.weight} kg</span>}
+                        {m.weight && <span className="font-medium text-slate-900 dark:text-white">{formatWeight(m.weight)} kg</span>}
                         {m.body_fat_percentage && <span className="text-slate-500 dark:text-slate-400 ml-2">({m.body_fat_percentage}% BF)</span>}
                       </div>
                     </div>
@@ -604,15 +625,89 @@ export default function Progress() {
 
             {/* Goals */}
             <div className="card">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Goals</h2>
-              {goals.length === 0 ? (
-                <p className="text-slate-500 dark:text-slate-400">No goals set yet.</p>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Goals</h2>
+                <button
+                  onClick={() => setShowCreateGoal(true)}
+                  className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium"
+                >
+                  + Add Goal
+                </button>
+              </div>
+              
+              {showCreateGoal && (
+                <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-3">
+                  <div>
+                    <label className="label">Goal Type</label>
+                    <select
+                      value={newGoal.goalType}
+                      onChange={(e) => setNewGoal({ ...newGoal, goalType: e.target.value })}
+                      className="input"
+                    >
+                      <option value="">Select goal type...</option>
+                      <option value="weight_loss">Weight Loss</option>
+                      <option value="muscle_gain">Muscle Gain</option>
+                      <option value="body_fat">Body Fat %</option>
+                      <option value="workout_frequency">Workout Frequency</option>
+                      <option value="running_distance">Running Distance</option>
+                      <option value="strength">Strength Goal</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Target Value</label>
+                      <input
+                        type="number"
+                        value={newGoal.targetValue}
+                        onChange={(e) => setNewGoal({ ...newGoal, targetValue: e.target.value })}
+                        className="input"
+                        placeholder="100"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Unit</label>
+                      <input
+                        type="text"
+                        value={newGoal.unit}
+                        onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })}
+                        className="input"
+                        placeholder="kg, %, km..."
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Deadline (optional)</label>
+                    <input
+                      type="date"
+                      value={newGoal.deadline}
+                      onChange={(e) => setNewGoal({ ...newGoal, deadline: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={createGoal} className="btn-primary text-sm">Create Goal</button>
+                    <button onClick={() => setShowCreateGoal(false)} className="btn-secondary text-sm">Cancel</button>
+                  </div>
+                </div>
+              )}
+              
+              {goals.length === 0 && !showCreateGoal ? (
+                <div className="text-center py-6">
+                  <p className="text-slate-500 dark:text-slate-400 mb-2">No goals set yet</p>
+                  <button
+                    onClick={() => setShowCreateGoal(true)}
+                    className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    Create your first goal
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-3">
                   {goals.map((goal) => (
                     <div key={goal.id} className={`p-4 rounded-xl ${goal.achieved ? 'bg-green-50 dark:bg-green-900/20' : 'bg-slate-50 dark:bg-slate-800/50'}`}>
                       <div className="flex justify-between items-center">
-                        <span className="font-medium text-slate-900 dark:text-white capitalize">{goal.goal_type.replace('_', ' ')}</span>
+                        <span className="font-medium text-slate-900 dark:text-white capitalize">{goal.goal_type.replace(/_/g, ' ')}</span>
                         {goal.achieved && <span className="text-green-600 dark:text-green-400 text-sm font-medium">✓ Achieved</span>}
                       </div>
                       <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -624,6 +719,11 @@ export default function Progress() {
                           style={{ width: `${Math.min(((goal.current_value || 0) / goal.target_value) * 100, 100)}%` }}
                         />
                       </div>
+                      {goal.deadline && (
+                        <div className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                          Due: {new Date(goal.deadline).toLocaleDateString()}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

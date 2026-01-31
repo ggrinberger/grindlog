@@ -11,6 +11,7 @@ import Workouts from './pages/Workouts';
 import Diet from './pages/Diet';
 import Progress from './pages/Progress';
 import Groups from './pages/Groups';
+import Profile from './pages/Profile';
 import Admin from './pages/Admin';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -81,6 +82,7 @@ function AppContent() {
           <Route path="diet" element={<Diet />} />
           <Route path="progress" element={<Progress />} />
           <Route path="groups" element={<Groups />} />
+          <Route path="profile" element={<Profile />} />
           <Route
             path="admin"
             element={
