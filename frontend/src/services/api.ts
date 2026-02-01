@@ -113,6 +113,12 @@ export const progress = {
     api.post('/progress/exercises/last-weights', { exerciseNames }),
   logExerciseByName: (data: { exerciseName: string; weight?: number; sets?: number; reps?: number; notes?: string; category?: string; muscleGroup?: string }) =>
     api.post('/progress/exercises/log-by-name', data),
+  deleteProgressEntry: (logId: string) =>
+    api.delete(`/progress/exercise-log/${logId}`),
+  clearExerciseProgress: (exerciseId: string) =>
+    api.delete(`/progress/exercise/${exerciseId}/clear`),
+  clearAllProgress: () =>
+    api.delete('/progress/exercises/clear-all'),
 };
 
 // Groups
@@ -199,6 +205,10 @@ export const nutrition = {
   deleteMeal: (id: string) => api.delete(`/nutrition/meals/${id}`),
   getDailySummary: (date?: string) => api.get('/nutrition/summary/daily', { params: { date } }),
   getWeeklySummary: () => api.get('/nutrition/summary/weekly'),
+  // Nutrition Plans
+  getPlans: () => api.get('/nutrition/plans'),
+  getPlan: (id: string) => api.get(`/nutrition/plans/${id}`),
+  getPlanByDayType: (dayType: 'high_intensity' | 'moderate' | 'recovery') => api.get(`/nutrition/plans/day-type/${dayType}`),
 };
 
 // Supplements (Enhanced)
@@ -232,9 +242,9 @@ export const onboarding = {
     api.delete(`/onboarding/schedule/${dayOfWeek}`),
   getDayExercises: (dayOfWeek: number) =>
     api.get(`/onboarding/schedule/${dayOfWeek}/exercises`),
-  addDayExercise: (dayOfWeek: number, data: { exerciseId: string; sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number; notes?: string }) =>
+  addDayExercise: (dayOfWeek: number, data: { exerciseId: string; sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number; notes?: string; section?: string }) =>
     api.post(`/onboarding/schedule/${dayOfWeek}/exercises`, data),
-  updateDayExercise: (exerciseEntryId: string, data: { sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number; notes?: string }) =>
+  updateDayExercise: (exerciseEntryId: string, data: { sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number; notes?: string; section?: string }) =>
     api.patch(`/onboarding/schedule/exercises/${exerciseEntryId}`, data),
   removeDayExercise: (exerciseEntryId: string) =>
     api.delete(`/onboarding/schedule/exercises/${exerciseEntryId}`),

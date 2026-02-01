@@ -349,4 +349,170 @@ router.get('/summary/weekly', authenticate, async (req: AuthRequest, res: Respon
   }
 });
 
+// ============================================
+// NUTRITION PLANS (Pre-built meal plans by day type)
+// ============================================
+
+// Get all nutrition plans
+router.get('/plans', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const result = await query(
+      `SELECT id, name, day_type, description, daily_calories, protein_g, carbs_g, fat_g, 
+              meals_count, notes, is_active, created_at
+       FROM nutrition_plans
+       WHERE is_active = true
+       ORDER BY 
+         CASE day_type 
+           WHEN 'high_intensity' THEN 1 
+           WHEN 'moderate' THEN 2 
+           WHEN 'recovery' THEN 3 
+         END`
+    );
+    
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get nutrition plan by ID with meal templates
+router.get('/plans/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    
+    // Get plan
+    const planResult = await query(
+      `SELECT id, name, day_type, description, daily_calories, protein_g, carbs_g, fat_g,
+              meals_count, notes, is_active, created_at
+       FROM nutrition_plans
+       WHERE id = $1`,
+      [id]
+    );
+    
+    if (planResult.rows.length === 0) {
+      return next(createError('Nutrition plan not found', 404));
+    }
+    
+    const plan = planResult.rows[0];
+    
+    // Get meal templates for this plan
+    const templatesResult = await query(
+      `SELECT mt.id, mt.meal_type, mt.option_name, mt.total_calories, 
+              mt.protein_g, mt.carbs_g, mt.fat_g, mt.timing_notes, mt.order_index
+       FROM meal_templates mt
+       WHERE mt.plan_id = $1
+       ORDER BY mt.order_index`,
+      [id]
+    );
+    
+    // Get items for each template
+    const templates = [];
+    for (const template of templatesResult.rows) {
+      const itemsResult = await query(
+        `SELECT id, ingredient, amount, protein_g, carbs_g, fat_g, calories, notes, order_index
+         FROM meal_template_items
+         WHERE template_id = $1
+         ORDER BY order_index`,
+        [template.id]
+      );
+      
+      templates.push({
+        ...template,
+        items: itemsResult.rows
+      });
+    }
+    
+    // Group templates by meal type
+    const mealsByType: Record<string, typeof templates> = {};
+    templates.forEach(t => {
+      if (!mealsByType[t.meal_type]) {
+        mealsByType[t.meal_type] = [];
+      }
+      mealsByType[t.meal_type].push(t);
+    });
+    
+    res.json({
+      ...plan,
+      meals: mealsByType
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get nutrition plan by day type
+router.get('/plans/day-type/:dayType', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { dayType } = req.params;
+    
+    const validTypes = ['high_intensity', 'moderate', 'recovery'];
+    if (!validTypes.includes(dayType)) {
+      return next(createError(`Invalid day type. Must be one of: ${validTypes.join(', ')}`, 400));
+    }
+    
+    const planResult = await query(
+      `SELECT id FROM nutrition_plans WHERE day_type = $1 AND is_active = true LIMIT 1`,
+      [dayType]
+    );
+    
+    if (planResult.rows.length === 0) {
+      return next(createError('No plan found for this day type', 404));
+    }
+    
+    // Redirect to the full plan endpoint
+    req.params.id = planResult.rows[0].id;
+    
+    // Re-fetch with the ID
+    const fullPlanResult = await query(
+      `SELECT id, name, day_type, description, daily_calories, protein_g, carbs_g, fat_g,
+              meals_count, notes, is_active, created_at
+       FROM nutrition_plans
+       WHERE id = $1`,
+      [planResult.rows[0].id]
+    );
+    
+    const plan = fullPlanResult.rows[0];
+    
+    const templatesResult = await query(
+      `SELECT mt.id, mt.meal_type, mt.option_name, mt.total_calories, 
+              mt.protein_g, mt.carbs_g, mt.fat_g, mt.timing_notes, mt.order_index
+       FROM meal_templates mt
+       WHERE mt.plan_id = $1
+       ORDER BY mt.order_index`,
+      [plan.id]
+    );
+    
+    const templates = [];
+    for (const template of templatesResult.rows) {
+      const itemsResult = await query(
+        `SELECT id, ingredient, amount, protein_g, carbs_g, fat_g, calories, notes, order_index
+         FROM meal_template_items
+         WHERE template_id = $1
+         ORDER BY order_index`,
+        [template.id]
+      );
+      
+      templates.push({
+        ...template,
+        items: itemsResult.rows
+      });
+    }
+    
+    const mealsByType: Record<string, typeof templates> = {};
+    templates.forEach(t => {
+      if (!mealsByType[t.meal_type]) {
+        mealsByType[t.meal_type] = [];
+      }
+      mealsByType[t.meal_type].push(t);
+    });
+    
+    res.json({
+      ...plan,
+      meals: mealsByType
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

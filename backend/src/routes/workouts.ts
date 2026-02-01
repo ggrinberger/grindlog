@@ -9,7 +9,11 @@ const router = Router();
 router.get('/exercises', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await query(
-      `SELECT * FROM exercises WHERE is_public = true OR created_by = $1 ORDER BY name`,
+      `SELECT id, name, category, muscle_group, description, is_cardio, is_public, created_by, created_at,
+              COALESCE(typical_section, 'exercise') as typical_section
+       FROM exercises 
+       WHERE is_public = true OR created_by = $1 
+       ORDER BY name`,
       [req.user!.id]
     );
     res.json(result.rows);

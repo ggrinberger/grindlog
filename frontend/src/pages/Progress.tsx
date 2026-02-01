@@ -804,6 +804,33 @@ export default function Progress() {
 
       {activeTab === 'exercises' && (
         <>
+          {/* Section Header with Clear Button */}
+          {exerciseProgress.filter(ep => ep.total_entries > 0).length > 0 && (
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Exercise Progress</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Click any exercise to view history</p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (confirm('Clear ALL exercise progress data? This cannot be undone.')) {
+                    try {
+                      await progress.clearAllProgress();
+                      setExerciseProgress([]);
+                      setHistoryExercise(null);
+                      setExerciseHistory([]);
+                    } catch (error) {
+                      console.error('Failed to clear progress:', error);
+                    }
+                  }
+                }}
+                className="text-sm text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                Clear All Progress
+              </button>
+            </div>
+          )}
+
           {/* Exercise History Chart */}
           {historyExercise && exerciseHistory.length > 0 && (
             <div className="card">
@@ -862,7 +889,7 @@ export default function Progress() {
           )}
 
           {/* Exercise Progress Cards */}
-          {exerciseProgress.length === 0 ? (
+          {exerciseProgress.filter(ep => ep.total_entries > 0).length === 0 ? (
             <div className="card text-center py-12">
               <div className="text-5xl mb-3">📈</div>
               <div className="text-lg font-semibold text-slate-700 dark:text-slate-200">No exercise progress logged yet</div>
@@ -871,7 +898,7 @@ export default function Progress() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {exerciseProgress.map((ep) => (
+              {exerciseProgress.filter(ep => ep.total_entries > 0).map((ep) => (
                 <div
                   key={ep.id}
                   className="card card-hover cursor-pointer group"

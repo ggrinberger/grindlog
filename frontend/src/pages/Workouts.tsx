@@ -8,6 +8,7 @@ interface Exercise {
   category: string;
   muscle_group: string;
   is_cardio: boolean;
+  typical_section?: 'warm-up' | 'exercise' | 'finisher';
 }
 
 interface ScheduleExercise {
@@ -25,6 +26,7 @@ interface ScheduleExercise {
   rest_seconds: number | null;
   notes: string | null;
   order_index: number;
+  section: 'warm-up' | 'exercise' | 'finisher';
 }
 
 interface ScheduleDay {
@@ -86,6 +88,17 @@ export default function Workouts() {
   // Active workout state
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [loggingExercise, setLoggingExercise] = useState<LoggingExercise | null>(null);
+  
+  // Exercise being added (for modal)
+  const [addingExercise, setAddingExercise] = useState<{ dayIndex: number; exercise: Exercise } | null>(null);
+  const [newExerciseValues, setNewExerciseValues] = useState({
+    sets: '3',
+    reps: '10',
+    weight: '',
+    durationMinutes: '30',
+    intervals: '1',
+    section: 'exercise' as 'warm-up' | 'exercise' | 'finisher',
+  });
 
   useEffect(() => {
     fetchData();
@@ -139,29 +152,101 @@ export default function Workouts() {
   };
 
   const addExerciseToDay = async (dayOfWeek: number, exercise: Exercise) => {
+    // Show modal to enter values instead of adding with defaults
+    // Auto-set section based on exercise's typical_section or name patterns
+    let autoSection: 'warm-up' | 'exercise' | 'finisher' = 'exercise';
+    
+    // First check the typical_section from database
+    if (exercise.typical_section) {
+      autoSection = exercise.typical_section;
+    } else {
+      // Fallback: detect from exercise name
+      const nameLower = exercise.name.toLowerCase();
+      if (
+        nameLower.includes('warm') ||
+        nameLower.includes('activation') ||
+        nameLower.includes('mobility') ||
+        nameLower.includes('stretch') ||
+        nameLower.includes('bar-only') ||
+        nameLower.includes('ramp') ||
+        exercise.category === 'Mobility' ||
+        exercise.category === 'Breathing'
+      ) {
+        autoSection = 'warm-up';
+      } else if (
+        nameLower.includes('zone 2') ||
+        nameLower.includes('protocol') ||
+        nameLower.includes('threshold') ||
+        nameLower.includes('conditioning') ||
+        nameLower.includes('finisher') ||
+        nameLower.includes('cool-down') ||
+        nameLower.includes('cooldown')
+      ) {
+        autoSection = 'finisher';
+      }
+    }
+    
+    setAddingExercise({ dayIndex: dayOfWeek, exercise });
+    setNewExerciseValues({
+      sets: '3',
+      reps: '10',
+      weight: '',
+      durationMinutes: '30',
+      intervals: '1',
+      section: autoSection,
+    });
+    setShowExerciseSearch(null);
+    setExerciseSearch('');
+  };
+
+  const confirmAddExercise = async () => {
+    if (!addingExercise) return;
+    
+    const { dayIndex, exercise } = addingExercise;
+    
     try {
       if (exercise.is_cardio) {
-        await onboarding.addDayExercise(dayOfWeek, {
+        const duration = parseFloat(newExerciseValues.durationMinutes);
+        if (!duration || duration <= 0) {
+          alert('Please enter a valid duration');
+          return;
+        }
+        await onboarding.addDayExercise(dayIndex, {
           exerciseId: exercise.id,
-          durationSeconds: 1800,
-          intervals: 1,
+          durationSeconds: Math.round(duration * 60),
+          intervals: parseInt(newExerciseValues.intervals) || 1,
+          section: newExerciseValues.section,
         });
       } else {
-        await onboarding.addDayExercise(dayOfWeek, {
+        const weight = parseFloat(newExerciseValues.weight);
+        const sets = parseInt(newExerciseValues.sets);
+        const reps = parseInt(newExerciseValues.reps);
+        
+        if (!weight || weight <= 0) {
+          alert('Please enter a valid weight');
+          return;
+        }
+        if (!sets || sets <= 0 || !reps || reps <= 0) {
+          alert('Please enter valid sets and reps');
+          return;
+        }
+        
+        await onboarding.addDayExercise(dayIndex, {
           exerciseId: exercise.id,
-          sets: 3,
-          reps: 10,
+          sets,
+          reps,
+          weight,
+          section: newExerciseValues.section,
         });
       }
       await fetchData();
-      setShowExerciseSearch(null);
-      setExerciseSearch('');
+      setAddingExercise(null);
     } catch (error) {
       console.error('Failed to add exercise:', error);
     }
   };
 
-  const updateExercise = async (exerciseEntryId: string, data: { sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number }) => {
+  const updateExercise = async (exerciseEntryId: string, data: { sets?: number; reps?: number; weight?: number; durationSeconds?: number; intervals?: number; restSeconds?: number; section?: string }) => {
     try {
       await onboarding.updateDayExercise(exerciseEntryId, data);
       await fetchData();
@@ -604,6 +689,103 @@ export default function Workouts() {
   // Normal Schedule View
   return (
     <div className="space-y-6">
+      {/* Add Exercise Modal */}
+      {addingExercise && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+              Add {addingExercise.exercise.name}
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              {addingExercise.exercise.is_cardio ? 'Set duration and intervals' : 'Set weight, sets, and reps'}
+            </p>
+            
+            {addingExercise.exercise.is_cardio ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Duration (minutes) *</label>
+                  <input
+                    type="number"
+                    value={newExerciseValues.durationMinutes}
+                    onChange={(e) => setNewExerciseValues({ ...newExerciseValues, durationMinutes: e.target.value })}
+                    className="input"
+                    placeholder="30"
+                    min="1"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="label">Intervals</label>
+                  <input
+                    type="number"
+                    value={newExerciseValues.intervals}
+                    onChange={(e) => setNewExerciseValues({ ...newExerciseValues, intervals: e.target.value })}
+                    className="input"
+                    placeholder="1"
+                    min="1"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Weight (kg) *</label>
+                  <input
+                    type="number"
+                    value={newExerciseValues.weight}
+                    onChange={(e) => setNewExerciseValues({ ...newExerciseValues, weight: e.target.value })}
+                    className="input"
+                    placeholder="e.g., 60"
+                    min="0"
+                    step="0.5"
+                    autoFocus
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Sets *</label>
+                    <input
+                      type="number"
+                      value={newExerciseValues.sets}
+                      onChange={(e) => setNewExerciseValues({ ...newExerciseValues, sets: e.target.value })}
+                      className="input"
+                      placeholder="3"
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Reps *</label>
+                    <input
+                      type="number"
+                      value={newExerciseValues.reps}
+                      onChange={(e) => setNewExerciseValues({ ...newExerciseValues, reps: e.target.value })}
+                      className="input"
+                      placeholder="10"
+                      min="1"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setAddingExercise(null)}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAddExercise}
+                className="btn-primary flex-1"
+              >
+                Add Exercise
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="page-header">
         <div>
           <h1 className="page-title">Weekly Training</h1>
@@ -695,7 +877,7 @@ export default function Workouts() {
                       />
                     ) : (
                       <div
-                        className={`text-lg font-semibold ${
+                        className={`text-lg font-semibold cursor-pointer hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-2 group/name ${
                           daySchedule?.is_rest_day ? 'text-blue-600' : 'text-slate-900 dark:text-white'
                         }`}
                         onClick={(e) => {
@@ -703,11 +885,15 @@ export default function Workouts() {
                           setEditingDayName(dayIndex);
                           setDayNameInput(daySchedule?.name || '');
                         }}
+                        title="Click to edit workout name"
                       >
                         {daySchedule 
                           ? (daySchedule.is_rest_day ? '😴 Rest Day' : daySchedule.name)
                           : <span className="text-slate-400 dark:text-slate-500 text-base">Click to set workout...</span>
                         }
+                        <svg className="w-4 h-4 opacity-0 group-hover/name:opacity-100 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
                       </div>
                     )}
                   </div>
@@ -743,10 +929,32 @@ export default function Workouts() {
               {/* Expanded Content */}
               {isExpanded && !daySchedule?.is_rest_day && (
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  {/* Exercises List */}
+                  {/* Exercises List - Grouped by Section */}
                   {daySchedule?.exercises && daySchedule.exercises.length > 0 ? (
-                    <div className="space-y-2 mb-4">
-                      {daySchedule.exercises.map((ex, idx) => (
+                    <div className="space-y-4 mb-4">
+                      {(['warm-up', 'exercise', 'finisher'] as const).map((section) => {
+                        const sectionExercises = daySchedule.exercises.filter(ex => (ex.section || 'exercise') === section);
+                        if (sectionExercises.length === 0) return null;
+                        
+                        return (
+                          <div key={section}>
+                            {/* Section Header */}
+                            <div className={`text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2 ${
+                              section === 'warm-up'
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : section === 'finisher'
+                                  ? 'text-purple-600 dark:text-purple-400'
+                                  : 'text-emerald-600 dark:text-emerald-400'
+                            }`}>
+                              {section === 'warm-up' && '🔥 Warm-up'}
+                              {section === 'exercise' && '💪 Main Workout'}
+                              {section === 'finisher' && '🏁 Finisher'}
+                              <span className="text-slate-400 dark:text-slate-500 font-normal">({sectionExercises.length})</span>
+                            </div>
+                            
+                            {/* Section Exercises */}
+                            <div className="space-y-2">
+                              {sectionExercises.map((ex) => (
                         <div
                           key={ex.id}
                           className={`flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl group transition-all ${
@@ -764,10 +972,26 @@ export default function Workouts() {
                             </svg>
                           </div>
                           
-                          {/* Order Number */}
-                          <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 text-sm font-medium flex items-center justify-center">
-                            {idx + 1}
-                          </div>
+                          {/* Section Tag */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const sections: Array<'warm-up' | 'exercise' | 'finisher'> = ['warm-up', 'exercise', 'finisher'];
+                              const currentIndex = sections.indexOf(ex.section || 'exercise');
+                              const nextSection = sections[(currentIndex + 1) % 3];
+                              updateExercise(ex.id, { section: nextSection });
+                            }}
+                            className={`px-2 py-0.5 rounded text-xs font-medium transition-all ${
+                              ex.section === 'warm-up'
+                                ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                                : ex.section === 'finisher'
+                                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                  : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                            }`}
+                            title="Click to change section"
+                          >
+                            {ex.section === 'warm-up' ? '🔥' : ex.section === 'finisher' ? '🏁' : '💪'}
+                          </button>
 
                           {/* Exercise Info */}
                           <div className="flex-1 min-w-0">
@@ -843,8 +1067,12 @@ export default function Workouts() {
                                 e.stopPropagation();
                                 setEditingExercise(ex.id);
                               }}
-                              className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 dark:text-white bg-white px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition-all"
+                              title="Click to edit sets, reps, and weight"
+                              className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900 dark:text-white bg-white dark:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all group/edit"
                             >
+                              <svg className="w-3.5 h-3.5 text-slate-400 group-hover/edit:text-emerald-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
                               {ex.is_cardio ? (
                                 <>
                                   <span className="font-medium">{formatDuration(ex.duration_seconds)}</span>
@@ -877,14 +1105,19 @@ export default function Workouts() {
                               e.stopPropagation();
                               removeExercise(ex.id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all p-1"
+                            className="text-red-400 hover:text-red-600 transition-all p-1"
+                            title="Remove exercise"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
                         </div>
-                      ))}
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-6 text-slate-400 dark:text-slate-500 mb-4">
@@ -914,22 +1147,39 @@ export default function Workouts() {
                           {filteredExercises.length === 0 ? (
                             <div className="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">No exercises found</div>
                           ) : (
-                            filteredExercises.slice(0, 10).map((ex) => (
+                            filteredExercises.slice(0, 10).map((ex) => {
+                              // Determine section for tag display
+                              let sectionTag: 'warm-up' | 'exercise' | 'finisher' = 'exercise';
+                              if (ex.typical_section) {
+                                sectionTag = ex.typical_section;
+                              } else {
+                                const nameLower = ex.name.toLowerCase();
+                                if (nameLower.includes('warm') || nameLower.includes('activation') || nameLower.includes('mobility') || nameLower.includes('stretch') || nameLower.includes('bar-only') || nameLower.includes('ramp') || ex.category === 'Mobility' || ex.category === 'Breathing') {
+                                  sectionTag = 'warm-up';
+                                } else if (nameLower.includes('zone 2') || nameLower.includes('protocol') || nameLower.includes('threshold') || nameLower.includes('conditioning') || nameLower.includes('finisher') || nameLower.includes('cool-down') || nameLower.includes('cooldown')) {
+                                  sectionTag = 'finisher';
+                                }
+                              }
+                              
+                              return (
                               <button
                                 key={ex.id}
                                 onClick={() => addExerciseToDay(dayIndex, ex)}
                                 className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 dark:bg-slate-800/50 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
                               >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-medium text-slate-900 dark:text-white">{ex.name}</span>
-                                  {ex.is_cardio && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded">Cardio</span>}
+                                  {sectionTag === 'warm-up' && <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">🔥 Warm-up</span>}
+                                  {sectionTag === 'exercise' && <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">💪 Main</span>}
+                                  {sectionTag === 'finisher' && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">🏁 Finisher</span>}
+                                  {ex.is_cardio && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">Cardio</span>}
                                 </div>
                                 <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                                   {ex.category}
                                   {ex.muscle_group && ` • ${ex.muscle_group}`}
                                 </div>
                               </button>
-                            ))
+                            );})
                           )}
                         </div>
                       )}

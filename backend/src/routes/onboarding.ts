@@ -193,7 +193,7 @@ router.get('/schedule/full', authenticate, async (req: AuthRequest, res: Respons
 router.post('/schedule/:dayOfWeek/exercises', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { dayOfWeek } = req.params;
-    const { exerciseId, sets, reps, weight, durationSeconds, intervals, restSeconds, notes } = req.body;
+    const { exerciseId, sets, reps, weight, durationSeconds, intervals, restSeconds, notes, section } = req.body;
     
     // Get or create schedule day
     const scheduleResult = await query(
@@ -223,10 +223,10 @@ router.post('/schedule/:dayOfWeek/exercises', authenticate, async (req: AuthRequ
     
     // Add the exercise
     const result = await query(
-      `INSERT INTO schedule_day_exercises (schedule_id, exercise_id, sets, reps, weight, duration_seconds, intervals, rest_seconds, notes, order_index)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO schedule_day_exercises (schedule_id, exercise_id, sets, reps, weight, duration_seconds, intervals, rest_seconds, notes, order_index, section)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [scheduleId, exerciseId, sets || 3, reps || 10, weight || null, durationSeconds || null, intervals || null, restSeconds || null, notes || null, nextOrder]
+      [scheduleId, exerciseId, sets || 3, reps || 10, weight || null, durationSeconds || null, intervals || null, restSeconds || null, notes || null, nextOrder, section || 'exercise']
     );
     
     // Get exercise details
@@ -248,7 +248,7 @@ router.post('/schedule/:dayOfWeek/exercises', authenticate, async (req: AuthRequ
 router.patch('/schedule/exercises/:exerciseEntryId', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { exerciseEntryId } = req.params;
-    const { sets, reps, weight, durationSeconds, intervals, restSeconds, notes } = req.body;
+    const { sets, reps, weight, durationSeconds, intervals, restSeconds, notes, section } = req.body;
     
     // Verify ownership
     const checkResult = await query(
@@ -271,9 +271,10 @@ router.patch('/schedule/exercises/:exerciseEntryId', authenticate, async (req: A
            intervals = COALESCE($5, intervals),
            rest_seconds = COALESCE($6, rest_seconds),
            notes = COALESCE($7, notes),
+           section = COALESCE($8, section),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8 RETURNING *`,
-      [sets, reps, weight, durationSeconds, intervals, restSeconds, notes, exerciseEntryId]
+       WHERE id = $9 RETURNING *`,
+      [sets, reps, weight, durationSeconds, intervals, restSeconds, notes, section, exerciseEntryId]
     );
     
     res.json(result.rows[0]);
