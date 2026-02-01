@@ -8,6 +8,7 @@ interface Exercise {
   category: string;
   muscle_group: string;
   is_cardio: boolean;
+  typical_section?: 'warm-up' | 'exercise' | 'finisher';
 }
 
 interface ScheduleExercise {
@@ -156,8 +157,8 @@ export default function Workouts() {
     let autoSection: 'warm-up' | 'exercise' | 'finisher' = 'exercise';
     
     // First check the typical_section from database
-    if ((exercise as any).typical_section) {
-      autoSection = (exercise as any).typical_section;
+    if (exercise.typical_section) {
+      autoSection = exercise.typical_section;
     } else {
       // Fallback: detect from exercise name
       const nameLower = exercise.name.toLowerCase();
@@ -1149,8 +1150,8 @@ export default function Workouts() {
                             filteredExercises.slice(0, 10).map((ex) => {
                               // Determine section for tag display
                               let sectionTag: 'warm-up' | 'exercise' | 'finisher' = 'exercise';
-                              if ((ex as any).typical_section) {
-                                sectionTag = (ex as any).typical_section;
+                              if (ex.typical_section) {
+                                sectionTag = ex.typical_section;
                               } else {
                                 const nameLower = ex.name.toLowerCase();
                                 if (nameLower.includes('warm') || nameLower.includes('activation') || nameLower.includes('mobility') || nameLower.includes('stretch') || nameLower.includes('bar-only') || nameLower.includes('ramp') || ex.category === 'Mobility' || ex.category === 'Breathing') {

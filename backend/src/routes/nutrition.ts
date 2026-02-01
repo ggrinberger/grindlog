@@ -423,7 +423,7 @@ router.get('/plans/:id', authenticate, async (req: AuthRequest, res: Response, n
     }
     
     // Group templates by meal type
-    const mealsByType: Record<string, any[]> = {};
+    const mealsByType: Record<string, typeof templates> = {};
     templates.forEach(t => {
       if (!mealsByType[t.meal_type]) {
         mealsByType[t.meal_type] = [];
@@ -498,7 +498,7 @@ router.get('/plans/day-type/:dayType', authenticate, async (req: AuthRequest, re
       });
     }
     
-    const mealsByType: Record<string, any[]> = {};
+    const mealsByType: Record<string, typeof templates> = {};
     templates.forEach(t => {
       if (!mealsByType[t.meal_type]) {
         mealsByType[t.meal_type] = [];
