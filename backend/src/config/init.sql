@@ -235,6 +235,7 @@ CREATE TABLE IF NOT EXISTS schedule_day_exercises (
     rest_seconds INTEGER,
     notes TEXT,
     order_index INTEGER NOT NULL DEFAULT 0,
+    section VARCHAR(20) DEFAULT 'exercise' CHECK (section IN ('warm-up', 'exercise', 'finisher')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -287,10 +288,12 @@ CREATE INDEX IF NOT EXISTS idx_exercise_progress_date ON exercise_progress(user_
 
 -- ============================================
 -- 1. WORKOUT TEMPLATES (Weekly Training Plan)
+-- User-specific: Each user creates their own workout templates
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS workout_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
     day_name VARCHAR(100) NOT NULL,
     section VARCHAR(50), -- e.g., 'WARM-UP', main workout
@@ -306,6 +309,8 @@ CREATE TABLE IF NOT EXISTS workout_templates (
 );
 
 CREATE INDEX IF NOT EXISTS idx_workout_templates_day ON workout_templates(day_of_week);
+CREATE INDEX IF NOT EXISTS idx_workout_templates_user ON workout_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_workout_templates_user_day ON workout_templates(user_id, day_of_week);
 
 -- ============================================
 -- 2. ROUTINES (Morning/Evening)
@@ -461,102 +466,9 @@ ALTER TABLE weekly_schedule ADD COLUMN IF NOT EXISTS primary_focus TEXT;
 
 -- ============================================
 -- 1. WORKOUT TEMPLATES (Weekly Training Plan)
+-- NOTE: Workout templates are now user-specific.
+-- New users create their own workouts - no default templates are seeded.
 -- ============================================
-
--- Day mapping: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
-
--- Saturday: Recovery (day_of_week = 6)
-INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index) VALUES
-(6, 'Saturday: Recovery', NULL, 'Yoga Flow', '15 min', 'Low intensity', 'N/A', 'Sun Salutations + hip openers + gentle stretches. Focus on mobility.', 1),
-(6, 'Saturday: Recovery', NULL, 'Nasal Breathing Practice', '5 min', 'N/A', 'N/A', '4 sec inhale through nose, 7 sec hold, 8 sec exhale. Sitting upright, parasympathetic focus.', 2),
-(6, 'Saturday: Recovery', NULL, 'Light Swim or Walk', '20 min', 'Zone 1 (<60% max HR)', 'N/A', 'Very easy pace, conversational, nasal breathing if possible. Capillary work, no accumulation.', 3),
-(6, 'Saturday: Recovery', NULL, 'Foam Rolling (mobility)', '10 min', 'Bodyweight', 'N/A', 'Target: quads (90 sec), hip flexors (90 sec), back (90 sec), chest (90 sec). Slow, deliberate rolling.', 4);
-
--- Sunday: Lower Power (day_of_week = 0)
-INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index) VALUES
-(0, 'Sunday: Lower Power', 'WARM-UP', '5-7 min moderate intensity bike/row/jog', 'N/A', '70-75% max HR', 'N/A', 'Warm quads/hamstrings/glutes, elevate HR, prepare for power work', 1),
-(0, 'Sunday: Lower Power', 'WARM-UP', 'Hip mobility flow + leg swings', '2x8 each', 'Bodyweight', 'N/A', 'Hip circles, leg swings (all directions), inchworms, glute bridges activation', 2),
-(0, 'Sunday: Lower Power', 'WARM-UP', 'Bodyweight Squats (tempo)', '3x10', 'Bodyweight', '60', '2 sec down, 1 sec pause, explosive up, high reps to prime power', 3),
-(0, 'Sunday: Lower Power', 'WARM-UP', 'Banded Glute Bridge (activation)', '2x8', 'Light resistance band', '90', 'Full range, 1 sec pause at top, glute activation for lockout strength', 4),
-(0, 'Sunday: Lower Power', 'WARM-UP', 'Bar-only Back Squat (form focus)', '2x5', 'Empty bar (45 lbs)', '90', 'Perfect depth, full ROM, explosive drive, shoulders packed', 5),
-(0, 'Sunday: Lower Power', 'WARM-UP', 'Ramp to working weight', '1x4, 1x2, 1x1', 'Build to 85%+ of today''s working load', '120-180', 'Explosive squat drive, prepare CNS for heavy power sets', 6),
-(0, 'Sunday: Lower Power', NULL, 'Barbell Back Squat (explosive)', '4x3-5', 'Heavy (85-90%)', '180-240', 'Full depth, drive explosively on concentric', 7),
-(0, 'Sunday: Lower Power', NULL, 'Bulgarian Split Squats (Dumbbell)', '3x8/side', 'Moderate-Heavy (75-80%)', '120', 'Back foot elevated on bench', 8),
-(0, 'Sunday: Lower Power', NULL, 'Leg Press Machine', '3x8-10', 'Moderate-Heavy (75-85%)', '120', 'Full range, control negative', 9),
-(0, 'Sunday: Lower Power', NULL, 'Nordic Curls', '3x6', 'High (eccentric focus)', '180', 'Lower slowly over 3-4 seconds', 10),
-(0, 'Sunday: Lower Power', NULL, 'Farmer''s Walk (Heavy Dumbbells)', '3x30m', 'Moderate', '120', 'Grip/core endurance, maintain posture', 11),
-(0, 'Sunday: Lower Power', NULL, 'Planks', '3x45sec', 'Bodyweight', '90', 'Stay rigid, breathe steadily', 12),
-(0, 'Sunday: Lower Power', 'FINISHER', 'Zone 2 Walk or Bike (Finisher)', '15-20 min', '60-70% max HR', 'N/A', 'Conversational pace, nasal breathing', 13);
-
--- Monday: Upper Push + Arms (day_of_week = 1)
-INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index) VALUES
-(1, 'Monday: Upper Push + Arms', 'WARM-UP', '5 min easy stationary bike or rowing', 'N/A', '60-70% max HR', 'N/A', 'Elevate HR, warm shoulders/chest/triceps, get blood flowing', 1),
-(1, 'Monday: Upper Push + Arms', 'WARM-UP', 'Shoulder mobility + arm circles', '2x10 each', 'Bodyweight', 'N/A', 'Band pull-aparts (10), arm circles (forward/backward), cross-body shoulder stretch', 2),
-(1, 'Monday: Upper Push + Arms', 'WARM-UP', 'Push-ups + Scapular work', '3x8', 'Bodyweight', '60', 'Full ROM, 1 sec pause at bottom, engage chest/shoulders, prime muscles', 3),
-(1, 'Monday: Upper Push + Arms', 'WARM-UP', 'Bar-only Bench Press (technique)', '2x5', 'Empty bar (45 lbs)', '90', 'Strict form, full ROM, pause at chest, shoulders packed', 4),
-(1, 'Monday: Upper Push + Arms', 'WARM-UP', 'Ramp to working weight', '1x4, 1x2, 1x1', 'Build to 85%+ of today''s working load', '120', 'Explosive pressing, prepare for heavy sets', 5),
-(1, 'Monday: Upper Push + Arms', NULL, 'Barbell Bench Press (strict)', '4x4-6', 'Heavy (85-90%)', '240-300', 'Pause 1 sec at chest, full ROM', 6),
-(1, 'Monday: Upper Push + Arms', NULL, 'Incline Dumbbell Press', '3x8-10', 'Moderate-Heavy (75-80%)', '120', '30-degree incline, controlled descent', 7),
-(1, 'Monday: Upper Push + Arms', NULL, 'Machine Chest Press', '3x10-12', 'Moderate (70-75%)', '90', 'Full range, 1 sec pause at top', 8),
-(1, 'Monday: Upper Push + Arms', NULL, 'Dips (bodyweight or weighted)', '3x8-10', 'Moderate-Heavy (75-80%)', '120', 'Full depth, upright torso', 9),
-(1, 'Monday: Upper Push + Arms', NULL, 'Lateral Raises (Dumbbell)', '3x12-15', 'Light-Moderate (50-60%)', '60', 'Strict form, slight knee bend, shoulder isolation', 10),
-(1, 'Monday: Upper Push + Arms', NULL, 'Tricep Rope Pushdown', '3x12-15', 'Light-Moderate (60-70%)', '60', 'Full extension, no momentum', 11),
-(1, 'Monday: Upper Push + Arms', NULL, 'Bicep Curls (Barbell)', '3x10-12', 'Moderate (70-75%)', '90', 'Strict form, no leg drive, full ROM', 12),
-(1, 'Monday: Upper Push + Arms', NULL, 'Rear Delt Flys (Machine or Dumbbell)', '3x12-15', 'Light-Moderate (60-70%)', '60', 'Focus on rear delt contraction, light weight', 13),
-(1, 'Monday: Upper Push + Arms', 'VO2', 'VO2 Max Protocol: Stationary Bike 4x4', '4 rounds', '95%+ max HR (hard) / 70% (easy)', '240 easy', '4 min max effort (legs burning), 4 min easy recovery. Total: 32 min', 14);
-
--- Tuesday: Pull + VO2 (day_of_week = 2)
-INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index) VALUES
-(2, 'Tuesday: Pull + VO2', 'WARM-UP', '5-10 min easy bike/row/walk', 'N/A', '60-70% max HR', 'N/A', 'Elevate core temp, warm lower back/hips, nasal breathing', 1),
-(2, 'Tuesday: Pull + VO2', 'WARM-UP', 'Dynamic hip openers + leg swings', '2x10 each', 'Bodyweight', 'N/A', 'Hip circles, leg swings (all directions), cat-cow, arm swings', 2),
-(2, 'Tuesday: Pull + VO2', 'WARM-UP', 'Bodyweight Romanian Deadlifts (RDL)', '3x8', 'Bodyweight', '60', 'Hinge at hips, keep back neutral, feel hamstring/glute stretch', 3),
-(2, 'Tuesday: Pull + VO2', 'WARM-UP', 'Bar-only Deadlift (form focus)', '2x5', 'Empty bar (45 lbs)', '90', 'Explosive hip drive, neutral spine, full lockout, chest up', 4),
-(2, 'Tuesday: Pull + VO2', 'WARM-UP', 'Ramp to working weight', '1x3, 1x2, 1x1', 'Build to 85%+ of today''s working load', '120-180', 'Explosive hip drive, prepare CNS for heavy pulls', 5),
-(2, 'Tuesday: Pull + VO2', NULL, 'Deadlifts (conventional)', '4x3-5', 'Heavy (85-90%)', '240-300', 'Explosive hip drive, neutral spine', 6),
-(2, 'Tuesday: Pull + VO2', NULL, 'Weighted Pull-ups', '4x5-8', 'Heavy (80-85%)', '180-240', 'Full range, add weight if needed, explosive upward', 7),
-(2, 'Tuesday: Pull + VO2', NULL, 'Seal Rows or T-Bar Rows', '3x8-10', 'Moderate-Heavy (75-80%)', '120', 'Chest-to-bar, elbows tucked, controlled eccentric', 8),
-(2, 'Tuesday: Pull + VO2', NULL, 'Face Pulls (rope attachment)', '3x15', 'Light-Moderate (50-60%)', '60', 'Rear delt focus, high reps, light weight', 9),
-(2, 'Tuesday: Pull + VO2', NULL, 'Barbell Curls', '3x8-10', 'Moderate (70-75%)', '90', 'Strict form, no momentum, full ROM', 10),
-(2, 'Tuesday: Pull + VO2', NULL, 'Dead Bugs (core)', '3x12/side', 'Bodyweight', '60', 'Opposite arm/leg extend, controlled, exhale on extension', 11),
-(2, 'Tuesday: Pull + VO2', NULL, 'Hanging Leg Raises', '3x8-12', 'Bodyweight or weighted', '90', 'Full range, lower with control, engage core', 12),
-(2, 'Tuesday: Pull + VO2', 'VO2', 'VO2 Max Protocol: Rower 6x2 Minutes', '6 rounds', '90-95% max HR (hard) / 70% (easy)', '60 easy', '2 min max effort (hard breathing), 1 min easy row. Total: 18 min. Adjust resistance for 2 min sustainability.', 13);
-
--- Wednesday: Hypertrophy (day_of_week = 3)
-INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index) VALUES
-(3, 'Wednesday: Hypertrophy', 'WARM-UP', '5-7 min moderate intensity bike/row/jog', 'N/A', '70-75% max HR', 'N/A', 'Warm quads/hamstrings/glutes, elevate HR, prepare for hypertrophy volume', 1),
-(3, 'Wednesday: Hypertrophy', NULL, 'Goblet Squats', '4x12-15', 'Moderate (65-70%)', '90', 'Full depth, controlled tempo', 2),
-(3, 'Wednesday: Hypertrophy', NULL, 'Romanian Deadlifts', '3x10-12', 'Moderate (70-75%)', '90', 'Feel hamstring stretch, control eccentric', 3),
-(3, 'Wednesday: Hypertrophy', NULL, 'Leg Extensions', '3x15-20', 'Light-Moderate (60-65%)', '60', 'Quad isolation, squeeze at top', 4),
-(3, 'Wednesday: Hypertrophy', NULL, 'Leg Curls', '3x12-15', 'Moderate (65-70%)', '60', 'Hamstring focus, control negative', 5),
-(3, 'Wednesday: Hypertrophy', NULL, 'Calf Raises', '4x15-20', 'Moderate (70-75%)', '60', 'Full ROM, pause at top and bottom', 6),
-(3, 'Wednesday: Hypertrophy', NULL, 'Cable Crunches', '3x15-20', 'Moderate', '60', 'Core focus, controlled movement', 7),
-(3, 'Wednesday: Hypertrophy', 'CONDITIONING', 'Conditioning Circuit', '15 min', 'Moderate-High', 'Minimal', 'Kettlebell swings, battle ropes, box jumps - rotate through', 8);
-
--- Thursday: Upper Pull + Arms (day_of_week = 4)
-INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index) VALUES
-(4, 'Thursday: Upper Pull + Arms', 'WARM-UP', '5 min easy rowing or bike', 'N/A', '60-70% max HR', 'N/A', 'Elevate HR, warm back/shoulders', 1),
-(4, 'Thursday: Upper Pull + Arms', 'WARM-UP', 'Band pull-aparts + shoulder dislocates', '2x15 each', 'Light band', 'N/A', 'Warm rotator cuff, prepare for pulling', 2),
-(4, 'Thursday: Upper Pull + Arms', NULL, 'Barbell Rows', '4x4-6', 'Heavy (80-85%)', '180', 'Explosive pull, controlled lower', 3),
-(4, 'Thursday: Upper Pull + Arms', NULL, 'Weighted Pull-ups', '4x5-8', 'Heavy (80-85%)', '180', 'Full range, add weight progressively', 4),
-(4, 'Thursday: Upper Pull + Arms', NULL, 'Cable Rows (seated)', '3x10-12', 'Moderate (70-75%)', '90', 'Squeeze shoulder blades, controlled', 5),
-(4, 'Thursday: Upper Pull + Arms', NULL, 'Lat Pulldowns', '3x12-15', 'Moderate (65-70%)', '60', 'Full stretch at top, squeeze at bottom', 6),
-(4, 'Thursday: Upper Pull + Arms', NULL, 'Hammer Curls', '3x10-12', 'Moderate (70-75%)', '60', 'Brachialis focus, strict form', 7),
-(4, 'Thursday: Upper Pull + Arms', NULL, 'Preacher Curls', '3x12-15', 'Light-Moderate (60-70%)', '60', 'Bicep peak isolation', 8),
-(4, 'Thursday: Upper Pull + Arms', NULL, 'Reverse Curls', '3x12-15', 'Light (50-60%)', '60', 'Forearm focus', 9),
-(4, 'Thursday: Upper Pull + Arms', 'VO2', 'VO2 Max Protocol: 3 Min Intervals', '5 rounds', '85-90% max HR (hard) / 70-75% (easy)', '120 easy', '3 min hard, 2 min easy. Total: 25 min', 10);
-
--- Friday: Home Full-Body Power (day_of_week = 5)
-INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index) VALUES
-(5, 'Friday: Home Full-Body Power', 'WARM-UP', '5 min jump rope or shadowboxing', 'N/A', '60-70% max HR', 'N/A', 'Elevate HR, full body activation', 1),
-(5, 'Friday: Home Full-Body Power', 'WARM-UP', 'Dynamic stretching flow', '3 min', 'Bodyweight', 'N/A', 'Arm circles, leg swings, hip openers, torso twists', 2),
-(5, 'Friday: Home Full-Body Power', NULL, 'Dumbbell Power Clean', '5x3-5', 'Heavy (85-90%)', '180', 'Explosive hip drive, catch in front rack', 3),
-(5, 'Friday: Home Full-Body Power', NULL, 'Goblet Squats', '4x6-8', 'Heavy (80-85%)', '120', 'Explosive up, controlled down', 4),
-(5, 'Friday: Home Full-Body Power', NULL, 'Dumbbell Push Press', '4x5-6', 'Heavy (80-85%)', '120', 'Leg drive into explosive press', 5),
-(5, 'Friday: Home Full-Body Power', NULL, 'Renegade Rows', '3x8/side', 'Moderate (70-75%)', '90', 'Anti-rotation core work + row', 6),
-(5, 'Friday: Home Full-Body Power', NULL, 'Jump Squats', '3x10', 'Bodyweight', '90', 'Explosive power, soft landing', 7),
-(5, 'Friday: Home Full-Body Power', NULL, 'Plank to Push-up', '3x10', 'Bodyweight', '60', 'Core stability, controlled transitions', 8),
-(5, 'Friday: Home Full-Body Power', NULL, 'Mountain Climbers', '3x30 sec', 'Bodyweight', '60', 'Fast pace, core engaged', 9),
-(5, 'Friday: Home Full-Body Power', 'THRESHOLD', 'Lactate Threshold Protocol', '24 min', '82-85% max HR', '120 between sets', '2 sets of 10 min threshold effort + 2 min easy between. Total: 24 min', 10);
 
 -- ============================================
 -- 2. ROUTINES (Morning/Evening)
@@ -657,9 +569,8 @@ INSERT INTO cardio_protocols (name, modality, description, total_minutes, freque
  'Excellent for combining strength/power with aerobic gains.');
 
 -- ============================================
--- 4. SUPPLEMENTS (Global defaults)
+-- 4. SUPPLEMENTS
 -- ============================================
-
-INSERT INTO supplements (name, dosage, frequency, timing_notes, description, is_global, is_active) VALUES
-('Minoxidil 5%', '1ml (10 sprays)', '2x daily', 'Morning: immediately after waking. Evening: 8-12 hours later (e.g., 8 PM). Wait 4h before shower/sweat.', 'Topical hair regrowth treatment. Apply to dry scalp only. Monitor for irritation first 2-4 weeks.', true, true),
-('Magnesium', '300-400mg', 'Once daily', 'Take 30-60 min before bed', 'Glycinate or threonate form preferred. Enhances deep sleep, muscle recovery, reduces restlessness.', true, true);
+-- Note: No default supplements are inserted.
+-- Users should set up their own supplements on first use.
+-- The frontend provides goal-based suggestions.

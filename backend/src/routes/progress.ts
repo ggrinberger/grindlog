@@ -357,4 +357,54 @@ router.post('/exercises/log-by-name', authenticate, async (req: AuthRequest, res
   }
 });
 
+// Delete a specific exercise progress entry
+router.delete('/exercise-log/:logId', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { logId } = req.params;
+    
+    const result = await query(
+      `DELETE FROM exercise_progress WHERE id = $1 AND user_id = $2 RETURNING id`,
+      [logId, req.user!.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Progress entry not found' });
+    }
+    
+    res.json({ message: 'Progress entry deleted' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Clear all exercise progress for a specific exercise
+router.delete('/exercise/:exerciseId/clear', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { exerciseId } = req.params;
+    
+    const result = await query(
+      `DELETE FROM exercise_progress WHERE exercise_id = $1 AND user_id = $2 RETURNING id`,
+      [exerciseId, req.user!.id]
+    );
+    
+    res.json({ message: `Deleted ${result.rowCount} progress entries` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Clear all exercise progress for the user
+router.delete('/exercises/clear-all', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const result = await query(
+      `DELETE FROM exercise_progress WHERE user_id = $1 RETURNING id`,
+      [req.user!.id]
+    );
+    
+    res.json({ message: `Deleted ${result.rowCount} progress entries` });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

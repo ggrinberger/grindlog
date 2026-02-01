@@ -9,13 +9,14 @@ const router = Router();
 // WORKOUT TEMPLATES
 // ============================================
 
-// Get all workout templates
+// Get all workout templates for the current user
 router.get('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await query(
       `SELECT * FROM workout_templates 
-       WHERE is_active = true 
-       ORDER BY day_of_week, order_index`
+       WHERE user_id = $1 AND is_active = true 
+       ORDER BY day_of_week, order_index`,
+      [req.user!.id]
     );
     res.json(result.rows);
   } catch (error) {
@@ -23,7 +24,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
   }
 });
 
-// Get templates by day of week
+// Get templates by day of week for the current user
 router.get('/day/:dayOfWeek', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { dayOfWeek } = req.params;
@@ -35,9 +36,9 @@ router.get('/day/:dayOfWeek', authenticate, async (req: AuthRequest, res: Respon
     
     const result = await query(
       `SELECT * FROM workout_templates 
-       WHERE day_of_week = $1 AND is_active = true 
+       WHERE user_id = $1 AND day_of_week = $2 AND is_active = true 
        ORDER BY order_index`,
-      [dayNum]
+      [req.user!.id, dayNum]
     );
     res.json(result.rows);
   } catch (error) {
@@ -45,13 +46,14 @@ router.get('/day/:dayOfWeek', authenticate, async (req: AuthRequest, res: Respon
   }
 });
 
-// Get templates grouped by day
+// Get templates grouped by day for the current user
 router.get('/weekly', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const result = await query(
       `SELECT * FROM workout_templates 
-       WHERE is_active = true 
-       ORDER BY day_of_week, order_index`
+       WHERE user_id = $1 AND is_active = true 
+       ORDER BY day_of_week, order_index`,
+      [req.user!.id]
     );
     
     // Group by day
@@ -73,15 +75,15 @@ router.get('/weekly', authenticate, async (req: AuthRequest, res: Response, next
   }
 });
 
-// Create workout template
+// Create workout template for the current user
 router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { dayOfWeek, dayName, section, exercise, setsReps, intensity, restSeconds, notes, orderIndex } = req.body;
     
     const result = await query(
-      `INSERT INTO workout_templates (day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [dayOfWeek, dayName, section, exercise, setsReps, intensity, restSeconds, notes, orderIndex || 0]
+      `INSERT INTO workout_templates (user_id, day_of_week, day_name, section, exercise, sets_reps, intensity, rest_seconds, notes, order_index)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [req.user!.id, dayOfWeek, dayName, section, exercise, setsReps, intensity, restSeconds, notes, orderIndex || 0]
     );
     
     res.status(201).json(result.rows[0]);
@@ -90,7 +92,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
   }
 });
 
-// Update workout template
+// Update workout template (only if owned by current user)
 router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
@@ -109,8 +111,8 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
            order_index = COALESCE($9, order_index),
            is_active = COALESCE($10, is_active),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $11 RETURNING *`,
-      [dayOfWeek, dayName, section, exercise, setsReps, intensity, restSeconds, notes, orderIndex, isActive, id]
+       WHERE id = $11 AND user_id = $12 RETURNING *`,
+      [dayOfWeek, dayName, section, exercise, setsReps, intensity, restSeconds, notes, orderIndex, isActive, id, req.user!.id]
     );
     
     if (result.rows.length === 0) {
@@ -123,14 +125,14 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response, next: N
   }
 });
 
-// Delete workout template
+// Delete workout template (only if owned by current user)
 router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     
     const result = await query(
-      `UPDATE workout_templates SET is_active = false WHERE id = $1 RETURNING *`,
-      [id]
+      `UPDATE workout_templates SET is_active = false WHERE id = $1 AND user_id = $2 RETURNING *`,
+      [id, req.user!.id]
     );
     
     if (result.rows.length === 0) {

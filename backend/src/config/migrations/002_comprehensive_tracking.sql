@@ -4,10 +4,12 @@
 
 -- ============================================
 -- 1. WORKOUT TEMPLATES (Weekly Training Plan)
+-- User-specific: Each user creates their own workout templates
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS workout_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
     day_name VARCHAR(100) NOT NULL,
     section VARCHAR(50), -- e.g., 'WARM-UP', main workout
@@ -23,6 +25,8 @@ CREATE TABLE IF NOT EXISTS workout_templates (
 );
 
 CREATE INDEX IF NOT EXISTS idx_workout_templates_day ON workout_templates(day_of_week);
+CREATE INDEX IF NOT EXISTS idx_workout_templates_user ON workout_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_workout_templates_user_day ON workout_templates(user_id, day_of_week);
 
 -- ============================================
 -- 2. ROUTINES (Morning/Evening)

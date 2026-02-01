@@ -1,23 +1,33 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { templates as templatesApi, cardio as cardioApi, progress as progressApi } from '../services/api';
+import { onboarding, cardio as cardioApi, progress as progressApi } from '../services/api';
 
-interface WorkoutTemplate {
+interface ScheduleExercise {
   id: string;
-  day_of_week: number;
-  day_name: string;
-  section: string | null;
-  exercise: string;
-  sets_reps: string;
-  intensity: string;
-  rest_seconds: string;
-  notes: string;
+  exercise_id: string;
+  exercise_name: string;
+  category: string;
+  muscle_group: string;
+  is_cardio: boolean;
+  sets: number;
+  reps: number;
+  weight: number | null;
+  duration_seconds: number | null;
+  intervals: number | null;
+  rest_seconds: number | null;
+  notes: string | null;
   order_index: number;
+  section: 'warm-up' | 'exercise' | 'finisher';
 }
 
-interface WeeklyPlan {
-  weeklyPlan: Record<number, WorkoutTemplate[]>;
-  dayNames: Record<number, string>;
+interface ScheduleDay {
+  id: string;
+  day_of_week: number;
+  name: string;
+  plan_id: string | null;
+  plan_name: string | null;
+  is_rest_day: boolean;
+  exercises: ScheduleExercise[];
 }
 
 interface CardioProtocol {
@@ -33,13 +43,13 @@ interface CardioProtocol {
 interface ActiveWorkout {
   dayOfWeek: number;
   dayName: string;
-  exercises: WorkoutTemplate[];
+  exercises: ScheduleExercise[];
   completedExercises: Set<string>;
   startedAt: Date;
 }
 
 interface EditingExercise {
-  exercise: WorkoutTemplate;
+  exercise: ScheduleExercise;
   sets: string;
   reps: string;
   weight: string;
@@ -74,27 +84,8 @@ const getColorForDay = (dayName: string) => {
   return { bg: 'bg-slate-50 dark:bg-slate-800/50', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-700' };
 };
 
-// Get exercise tag based on section and position
-const getExerciseTag = (section: string | null, _exercise: string): { label: string; color: string } | null => {
-  if (section === 'WARM-UP') {
-    return { label: 'WARM-UP', color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' };
-  }
-  if (section === 'VO2' || section === 'CONDITIONING') {
-    return { label: 'FINISHER', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' };
-  }
-  if (section === 'FINISHER' || section === 'THRESHOLD') {
-    return { label: 'FINISHER', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' };
-  }
-  // Main workout exercises (no section or main section)
-  if (!section) {
-    return { label: 'WORKOUT', color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' };
-  }
-  return null;
-};
-
 export default function WeeklyPlan() {
-  const [weeklyPlan, setWeeklyPlan] = useState<Record<number, WorkoutTemplate[]>>({});
-  const [dayNames, setDayNames] = useState<Record<number, string>>({});
+  const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [cardioProtocols, setCardioProtocols] = useState<CardioProtocol[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState<number | null>(TODAY);
@@ -111,20 +102,18 @@ export default function WeeklyPlan() {
 
   const fetchData = async () => {
     try {
-      const [response, cardioRes] = await Promise.all([
-        templatesApi.getWeekly(),
+      const [scheduleRes, cardioRes] = await Promise.all([
+        onboarding.getFullSchedule(),
         cardioApi.getProtocols(),
       ]);
-      const plan = response.data.weeklyPlan || {};
-      setWeeklyPlan(plan);
-      setDayNames(response.data.dayNames || {});
+      setSchedule(scheduleRes.data || []);
       setCardioProtocols(cardioRes.data || []);
       
       // Fetch last weights for all exercises
-      const allExercises = Object.values(plan).flat() as WorkoutTemplate[];
+      const allExercises = scheduleRes.data?.flatMap((day: ScheduleDay) => day.exercises) || [];
       const allExerciseNames = allExercises
-        .map(t => t.exercise)
-        .filter((name, index, arr) => arr.indexOf(name) === index); // unique
+        .map((e: ScheduleExercise) => e.exercise_name)
+        .filter((name: string, index: number, arr: string[]) => arr.indexOf(name) === index); // unique
       
       if (allExerciseNames.length > 0) {
         try {
@@ -141,38 +130,19 @@ export default function WeeklyPlan() {
     }
   };
 
-  const groupBySection = (exercises: WorkoutTemplate[]) => {
-    const groups: { section: string | null; exercises: WorkoutTemplate[] }[] = [];
-    let currentSection: string | null = null;
-    let currentGroup: WorkoutTemplate[] = [];
-
-    for (const ex of exercises) {
-      if (ex.section !== currentSection) {
-        if (currentGroup.length > 0) {
-          groups.push({ section: currentSection, exercises: currentGroup });
-        }
-        currentSection = ex.section;
-        currentGroup = [ex];
-      } else {
-        currentGroup.push(ex);
-      }
-    }
-    if (currentGroup.length > 0) {
-      groups.push({ section: currentSection, exercises: currentGroup });
-    }
-    return groups;
+  const getScheduleForDay = (day: number): ScheduleDay | undefined => {
+    return schedule.find(s => s.day_of_week === day);
   };
 
   // Start workout for a day
   const startWorkout = (dayOfWeek: number) => {
-    const exercises = weeklyPlan[dayOfWeek];
-    const dayName = dayNames[dayOfWeek];
-    if (!exercises || exercises.length === 0) return;
+    const daySchedule = getScheduleForDay(dayOfWeek);
+    if (!daySchedule || daySchedule.exercises.length === 0) return;
     
     setActiveWorkout({
       dayOfWeek,
-      dayName,
-      exercises,
+      dayName: daySchedule.name,
+      exercises: daySchedule.exercises,
       completedExercises: new Set(),
       startedAt: new Date(),
     });
@@ -197,20 +167,15 @@ export default function WeeklyPlan() {
   };
 
   // Open exercise editor
-  const openExerciseEditor = (exercise: WorkoutTemplate) => {
-    // Parse sets_reps like "4x3-5" or "3x8-10"
-    const match = exercise.sets_reps?.match(/(\d+)\s*[x×]\s*(\d+)/);
-    const sets = match ? match[1] : '3';
-    const reps = match ? match[2] : '10';
-    
+  const openExerciseEditor = (exercise: ScheduleExercise) => {
     // Get last weight if available
-    const last = getLastWeight(exercise.exercise);
+    const last = getLastWeight(exercise.exercise_name);
     
     setEditingExercise({
       exercise,
-      sets: last?.sets?.toString() || sets,
-      reps: last?.reps?.toString() || reps,
-      weight: last?.weight?.toString() || '',
+      sets: last?.sets?.toString() || exercise.sets?.toString() || '3',
+      reps: last?.reps?.toString() || exercise.reps?.toString() || '10',
+      weight: last?.weight?.toString() || exercise.weight?.toString() || '',
     });
   };
 
@@ -224,7 +189,7 @@ export default function WeeklyPlan() {
     try {
       // Log to backend
       await progressApi.logExerciseByName({
-        exerciseName: exercise.exercise,
+        exerciseName: exercise.exercise_name,
         weight: weight ? parseFloat(weight) : undefined,
         sets: sets ? parseInt(sets) : undefined,
         reps: reps ? parseInt(reps) : undefined,
@@ -234,7 +199,7 @@ export default function WeeklyPlan() {
       if (weight) {
         setLastWeights(prev => ({
           ...prev,
-          [exercise.exercise.toLowerCase()]: {
+          [exercise.exercise_name.toLowerCase()]: {
             weight: parseFloat(weight),
             sets: parseInt(sets) || 0,
             reps: parseInt(reps) || 0,
@@ -261,8 +226,12 @@ export default function WeeklyPlan() {
     setEditingExercise(null);
   };
 
-  // Get cardio for a day
+  // Get cardio for a day (only if the day has a workout set)
   const getCardioForDay = (day: number) => {
+    // Only show cardio if user has a workout scheduled for this day
+    const daySchedule = getScheduleForDay(day);
+    if (!daySchedule || daySchedule.exercises.length === 0) return null;
+    
     const cardioInfo = CARDIO_BY_DAY[day];
     if (!cardioInfo) return null;
     
@@ -299,7 +268,6 @@ export default function WeeklyPlan() {
     const totalCount = activeWorkout.exercises.length;
     const progressPercent = (completedCount / totalCount) * 100;
     const elapsedMinutes = Math.floor((Date.now() - activeWorkout.startedAt.getTime()) / 60000);
-    const groups = groupBySection(activeWorkout.exercises);
     const dayCardio = getCardioForDay(activeWorkout.dayOfWeek);
 
     return (
@@ -348,100 +316,94 @@ export default function WeeklyPlan() {
           </div>
         )}
 
-        {/* Exercise Checklist by Section */}
-        {groups.map((group, groupIdx) => (
-          <div key={groupIdx} className="space-y-3">
-            {group.section && (
-              <div className="flex items-center gap-2">
-                <div className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                  group.section === 'WARM-UP' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' :
-                  group.section === 'VO2' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                  group.section === 'FINISHER' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                  group.section === 'THRESHOLD' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
-                  group.section === 'CONDITIONING' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
-                  'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}>
-                  {group.section}
-                </div>
-                <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
-              </div>
-            )}
+        {/* Exercise Checklist */}
+        <div className="space-y-3">
+          {activeWorkout.exercises.map((ex, idx) => {
+            const isCompleted = activeWorkout.completedExercises.has(ex.id);
 
-            {group.exercises.map((ex, idx) => {
-              const isCompleted = activeWorkout.completedExercises.has(ex.id);
-              const tag = getExerciseTag(ex.section, ex.exercise);
+            return (
+              <div
+                key={ex.id}
+                className={`card transition-all ${isCompleted ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : ''}`}
+              >
+                <div className="flex items-start gap-4">
+                  {/* Checkbox */}
+                  <button
+                    onClick={() => markExerciseComplete(ex.id)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+                      isCompleted
+                        ? 'bg-emerald-500 text-white'
+                        : 'border-2 border-slate-300 dark:border-slate-600 text-slate-300 dark:text-slate-600 hover:border-emerald-500 hover:text-emerald-500'
+                    }`}
+                  >
+                    {isCompleted ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <span className="font-bold text-sm">{idx + 1}</span>
+                    )}
+                  </button>
 
-              return (
-                <div
-                  key={ex.id}
-                  className={`card transition-all ${isCompleted ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : ''}`}
-                >
-                  <div className="flex items-start gap-4">
-                    {/* Checkbox */}
-                    <button
-                      onClick={() => markExerciseComplete(ex.id)}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
-                        isCompleted
-                          ? 'bg-emerald-500 text-white'
-                          : 'border-2 border-slate-300 dark:border-slate-600 text-slate-300 dark:text-slate-600 hover:border-emerald-500 hover:text-emerald-500'
-                      }`}
-                    >
-                      {isCompleted ? (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <span className="font-bold text-sm">{idx + 1}</span>
-                      )}
-                    </button>
-
-                    {/* Exercise Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`font-medium ${isCompleted ? 'text-emerald-700 dark:text-emerald-400 line-through' : 'text-slate-900 dark:text-white'}`}>
-                          {ex.exercise}
+                  {/* Exercise Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`font-medium ${isCompleted ? 'text-emerald-700 dark:text-emerald-400 line-through' : 'text-slate-900 dark:text-white'}`}>
+                        {ex.exercise_name}
+                      </span>
+                      {ex.is_cardio && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                          CARDIO
                         </span>
-                        {tag && !ex.section && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tag.color}`}>
-                            {tag.label}
-                          </span>
-                        )}
-                      </div>
-                      {ex.notes && (
-                        <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">{ex.notes}</div>
                       )}
                     </div>
-
-                    {/* Sets/Reps/Intensity + Last Weight */}
-                    <div className="text-right flex-shrink-0">
-                      {ex.sets_reps && ex.sets_reps !== 'N/A' && (
-                        <div className="font-semibold text-slate-900 dark:text-white">{ex.sets_reps}</div>
-                      )}
-                      {ex.intensity && ex.intensity !== 'N/A' && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{ex.intensity}</div>
-                      )}
-                      {getLastWeight(ex.exercise) && (
-                        <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                          Last: {getLastWeight(ex.exercise)!.weight}kg
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Edit Button */}
-                    {!isCompleted && (
-                      <button
-                        onClick={() => openExerciseEditor(ex)}
-                        className="text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg transition-all"
-                      >
-                        Edit
-                      </button>
+                    {ex.notes && (
+                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">{ex.notes}</div>
                     )}
                   </div>
+
+                  {/* Sets/Reps/Weight */}
+                  <div className="text-right flex-shrink-0">
+                    {ex.is_cardio ? (
+                      <>
+                        {ex.duration_seconds && (
+                          <div className="font-semibold text-slate-900 dark:text-white">{Math.floor(ex.duration_seconds / 60)} min</div>
+                        )}
+                        {ex.intervals && ex.intervals > 1 && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{ex.intervals} intervals</div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-semibold text-slate-900 dark:text-white">
+                          {ex.sets}×{ex.reps}
+                        </div>
+                        {ex.weight && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{ex.weight}kg</div>
+                        )}
+                        {getLastWeight(ex.exercise_name) && (
+                          <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                            Last: {getLastWeight(ex.exercise_name)!.weight}kg
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Edit Button */}
+                  {!isCompleted && !ex.is_cardio && (
+                    <button
+                      onClick={() => openExerciseEditor(ex)}
+                      className="text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              </div>
+            );
+          })}
+        </div>
 
         {/* All done message */}
         {completedCount === totalCount && (
@@ -460,7 +422,7 @@ export default function WeeklyPlan() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">Log Exercise</h3>
-              <p className="text-slate-500 dark:text-slate-400 mb-4">{editingExercise.exercise.exercise}</p>
+              <p className="text-slate-500 dark:text-slate-400 mb-4">{editingExercise.exercise.exercise_name}</p>
               
               {/* Planned values + Last weight */}
               <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 mb-4">
@@ -468,19 +430,19 @@ export default function WeeklyPlan() {
                   <div>
                     <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Planned</div>
                     <div className="font-medium text-slate-900 dark:text-white">
-                      {editingExercise.exercise.sets_reps}
-                      {editingExercise.exercise.intensity && editingExercise.exercise.intensity !== 'N/A' && (
-                        <span className="text-slate-500 dark:text-slate-400 ml-2">@ {editingExercise.exercise.intensity}</span>
+                      {editingExercise.exercise.sets}×{editingExercise.exercise.reps}
+                      {editingExercise.exercise.weight && (
+                        <span className="text-slate-500 dark:text-slate-400 ml-2">@ {editingExercise.exercise.weight}kg</span>
                       )}
                     </div>
                   </div>
-                  {getLastWeight(editingExercise.exercise.exercise) && (
+                  {getLastWeight(editingExercise.exercise.exercise_name) && (
                     <div className="text-right">
                       <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Last Set</div>
                       <div className="font-medium text-emerald-600 dark:text-emerald-400">
-                        {getLastWeight(editingExercise.exercise.exercise)!.weight}kg
+                        {getLastWeight(editingExercise.exercise.exercise_name)!.weight}kg
                         <span className="text-slate-400 dark:text-slate-500 text-sm ml-1">
-                          ({getLastWeight(editingExercise.exercise.exercise)!.sets}×{getLastWeight(editingExercise.exercise.exercise)!.reps})
+                          ({getLastWeight(editingExercise.exercise.exercise_name)!.sets}×{getLastWeight(editingExercise.exercise.exercise_name)!.reps})
                         </span>
                       </div>
                     </div>
@@ -558,15 +520,15 @@ export default function WeeklyPlan() {
         >
           <option value="">Select a day...</option>
           {[0, 1, 2, 3, 4, 5, 6].map((day) => {
-            const dayName = dayNames[day] || '';
+            const daySchedule = getScheduleForDay(day);
             const isToday = day === TODAY;
-            const hasWorkout = weeklyPlan[day] && weeklyPlan[day].length > 0;
+            const hasWorkout = daySchedule && daySchedule.exercises.length > 0;
             const dayCardio = getCardioForDay(day);
-            const exerciseCount = hasWorkout ? weeklyPlan[day].filter(e => !e.section || e.section === null).length : 0;
+            const exerciseCount = hasWorkout ? daySchedule.exercises.length : 0;
             
             return (
               <option key={day} value={day}>
-                {DAY_LABELS[day]}{isToday ? ' (Today)' : ''} — {dayName.split(':')[1]?.trim() || dayName.split(':')[0] || 'Rest'}
+                {DAY_LABELS[day]}{isToday ? ' (Today)' : ''} — {daySchedule?.name || 'Rest'}
                 {hasWorkout ? ` • ${exerciseCount} ex` : ''}
                 {dayCardio ? ' ❤️' : ''}
               </option>
@@ -578,10 +540,10 @@ export default function WeeklyPlan() {
       {/* Week Overview - Desktop Buttons */}
       <div className="hidden sm:grid grid-cols-7 gap-2">
         {[0, 1, 2, 3, 4, 5, 6].map((day) => {
-          const dayName = dayNames[day] || '';
+          const daySchedule = getScheduleForDay(day);
           const isToday = day === TODAY;
-          const colors = getColorForDay(dayName);
-          const hasWorkout = weeklyPlan[day] && weeklyPlan[day].length > 0;
+          const colors = getColorForDay(daySchedule?.name || '');
+          const hasWorkout = daySchedule && daySchedule.exercises.length > 0;
           const dayCardio = getCardioForDay(day);
           
           return (
@@ -604,12 +566,12 @@ export default function WeeklyPlan() {
               <div className={`text-sm font-semibold truncate ${
                 expandedDay === day ? colors.text : 'text-slate-900 dark:text-white'
               }`}>
-                {dayName.split(':')[0]?.replace(DAY_LABELS[day] + ': ', '') || '—'}
+                {daySchedule?.name || '—'}
               </div>
               <div className="flex items-center justify-center gap-1 mt-0.5">
                 {hasWorkout && (
                   <span className="text-xs text-slate-400 dark:text-slate-500">
-                    {weeklyPlan[day].filter(e => !e.section || e.section === null).length} ex
+                    {daySchedule.exercises.length} ex
                   </span>
                 )}
                 {dayCardio && <span className="text-xs">❤️</span>}
@@ -620,129 +582,199 @@ export default function WeeklyPlan() {
       </div>
 
       {/* Expanded Day Details */}
-      {expandedDay !== null && weeklyPlan[expandedDay] && weeklyPlan[expandedDay].length > 0 && (
-        <div className="card">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`px-3 py-1 rounded-full ${getColorForDay(dayNames[expandedDay]).bg} ${getColorForDay(dayNames[expandedDay]).text} text-sm font-medium hidden sm:block`}>
-                {DAY_LABELS[expandedDay]}
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">{dayNames[expandedDay]}</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {weeklyPlan[expandedDay].length} total exercises
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => startWorkout(expandedDay)}
-              className="btn-primary w-full sm:w-auto"
-            >
-              Start Workout →
-            </button>
-          </div>
-
-          {/* Day's Cardio Protocol */}
-          {getCardioForDay(expandedDay) && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-red-500 flex-shrink-0">❤️</span>
-                    <span className="font-semibold text-red-700 dark:text-red-400">{getCardioForDay(expandedDay)!.name}</span>
-                  </div>
-                  <div className="text-sm text-red-600 dark:text-red-400 mt-1">{getCardioForDay(expandedDay)!.description}</div>
+      {expandedDay !== null && (() => {
+        const daySchedule = getScheduleForDay(expandedDay);
+        if (!daySchedule || daySchedule.exercises.length === 0) return null;
+        const colors = getColorForDay(daySchedule.name);
+        
+        return (
+          <div className="card">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`px-3 py-1 rounded-full ${colors.bg} ${colors.text} text-sm font-medium hidden sm:block`}>
+                  {DAY_LABELS[expandedDay]}
                 </div>
-                <Link to="/cardio" className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium whitespace-nowrap flex-shrink-0">
-                  Full Details →
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">{daySchedule.name}</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    {daySchedule.exercises.length} total exercises
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Link
+                  to="/workouts"
+                  className="btn-secondary flex-1 sm:flex-none text-center"
+                >
+                  ✏️ Edit
                 </Link>
+                <button
+                  onClick={() => startWorkout(expandedDay)}
+                  className="btn-primary flex-1 sm:flex-none"
+                >
+                  Start Workout →
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Grouped by section */}
-          <div className="space-y-6">
-            {groupBySection(weeklyPlan[expandedDay]).map((group, groupIdx) => (
-              <div key={groupIdx}>
-                {group.section && (
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                      group.section === 'WARM-UP' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' :
-                      group.section === 'VO2' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                      group.section === 'FINISHER' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                      group.section === 'THRESHOLD' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
-                      group.section === 'CONDITIONING' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
-                      'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}>
-                      {group.section}
+            {/* Day's Cardio Protocol */}
+            {getCardioForDay(expandedDay) && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-500 flex-shrink-0">❤️</span>
+                      <span className="font-semibold text-red-700 dark:text-red-400">{getCardioForDay(expandedDay)!.name}</span>
                     </div>
-                    <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+                    <div className="text-sm text-red-600 dark:text-red-400 mt-1">{getCardioForDay(expandedDay)!.description}</div>
                   </div>
-                )}
-
-                <div className="space-y-2">
-                  {group.exercises.map((ex, idx) => {
-                    const tag = getExerciseTag(ex.section, ex.exercise);
-                    
-                    return (
-                      <div
-                        key={ex.id}
-                        className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium flex items-center justify-center">
-                                {idx + 1}
-                              </span>
-                              <span className="font-medium text-slate-900 dark:text-white">{ex.exercise}</span>
-                              {tag && !ex.section && (
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tag.color}`}>
-                                  {tag.label}
-                                </span>
-                              )}
-                            </div>
-                            {ex.notes && (
-                              <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 ml-8">
-                                {ex.notes}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="text-right flex-shrink-0">
-                            {ex.sets_reps && ex.sets_reps !== 'N/A' && (
-                              <div className="font-semibold text-slate-900 dark:text-white">{ex.sets_reps}</div>
-                            )}
-                            {ex.intensity && ex.intensity !== 'N/A' && (
-                              <div className="text-xs text-slate-500 dark:text-slate-400">{ex.intensity}</div>
-                            )}
-                            {ex.rest_seconds && ex.rest_seconds !== 'N/A' && (
-                              <div className="text-xs text-slate-400 dark:text-slate-500">Rest: {ex.rest_seconds}s</div>
-                            )}
-                            {getLastWeight(ex.exercise) && (
-                              <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                                Last: {getLastWeight(ex.exercise)!.weight}kg
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <Link to="/cardio" className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium whitespace-nowrap flex-shrink-0">
+                    Full Details →
+                  </Link>
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* Exercise List - Grouped by Section */}
+            <div className="space-y-4">
+              {(['warm-up', 'exercise', 'finisher'] as const).map((section) => {
+                const sectionExercises = daySchedule.exercises.filter(ex => (ex.section || 'exercise') === section);
+                if (sectionExercises.length === 0) return null;
+                
+                return (
+                  <div key={section}>
+                    {/* Section Header */}
+                    <div className={`text-xs font-semibold uppercase tracking-wider mb-2 flex items-center gap-2 ${
+                      section === 'warm-up'
+                        ? 'text-orange-600 dark:text-orange-400'
+                        : section === 'finisher'
+                          ? 'text-purple-600 dark:text-purple-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {section === 'warm-up' && '🔥 Warm-up'}
+                      {section === 'exercise' && '💪 Main Workout'}
+                      {section === 'finisher' && '🏁 Finisher'}
+                    </div>
+                    
+                    <div className="space-y-2">
+              {sectionExercises.map((ex, idx) => (
+                <div
+                  key={ex.id}
+                  className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`w-6 h-6 rounded-full text-xs font-medium flex items-center justify-center ${
+                          section === 'warm-up'
+                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                            : section === 'finisher'
+                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                              : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <span className="font-medium text-slate-900 dark:text-white">{ex.exercise_name}</span>
+                        {ex.is_cardio && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                            CARDIO
+                          </span>
+                        )}
+                      </div>
+                      {ex.notes && (
+                        <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 ml-8">
+                          {ex.notes}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      {ex.is_cardio ? (
+                        <>
+                          {ex.duration_seconds && (
+                            <div className="font-semibold text-slate-900 dark:text-white">{Math.floor(ex.duration_seconds / 60)} min</div>
+                          )}
+                          {ex.intervals && ex.intervals > 1 && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{ex.intervals} intervals</div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-semibold text-slate-900 dark:text-white">
+                            {ex.sets}×{ex.reps}
+                          </div>
+                          {ex.weight && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{ex.weight}kg</div>
+                          )}
+                          {ex.rest_seconds && (
+                            <div className="text-xs text-slate-400 dark:text-slate-500">Rest: {ex.rest_seconds}s</div>
+                          )}
+                          {getLastWeight(ex.exercise_name) && (
+                            <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                              Last: {getLastWeight(ex.exercise_name)!.weight}kg
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* No workout for selected day */}
-      {expandedDay !== null && (!weeklyPlan[expandedDay] || weeklyPlan[expandedDay].length === 0) && (
-        <div className="card text-center py-8">
-          <div className="text-4xl mb-2">📋</div>
-          <div className="text-slate-500 dark:text-slate-400">
-            No training plan for {DAY_LABELS[expandedDay]}
+      {expandedDay !== null && (() => {
+        const daySchedule = getScheduleForDay(expandedDay);
+        if (daySchedule && daySchedule.exercises.length > 0) return null;
+        
+        return (
+          <div className="card text-center py-8">
+            <div className="text-4xl mb-2">📋</div>
+            <div className="text-slate-500 dark:text-slate-400 mb-4">
+              No training plan for {DAY_LABELS[expandedDay]}
+            </div>
+            <p className="text-sm text-slate-400 dark:text-slate-500 mb-4">
+              Create your own workout to get started
+            </p>
+            <Link 
+              to="/workouts" 
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Workout
+            </Link>
           </div>
+        );
+      })()}
+
+      {/* No workouts at all - prompt to set up */}
+      {schedule.length === 0 && expandedDay === null && (
+        <div className="card text-center py-12">
+          <div className="text-6xl mb-4">🏋️</div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+            Set Up Your Training Plan
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto">
+            You haven't created any workouts yet. Design your own weekly training program tailored to your goals.
+          </p>
+          <Link 
+            to="/workouts" 
+            className="btn-primary inline-flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create Your First Workout
+          </Link>
         </div>
       )}
 
@@ -751,10 +783,9 @@ export default function WeeklyPlan() {
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Week at a Glance</h3>
         <div className="space-y-2">
           {[6, 0, 1, 2, 3, 4, 5].map((day) => {
-            const dayName = dayNames[day] || '';
-            const exercises = weeklyPlan[day] || [];
-            const mainExercises = exercises.filter(e => !e.section);
-            const colors = getColorForDay(dayName);
+            const daySchedule = getScheduleForDay(day);
+            const exercises = daySchedule?.exercises || [];
+            const colors = getColorForDay(daySchedule?.name || '');
             const dayCardio = getCardioForDay(day);
             
             return (
@@ -768,7 +799,7 @@ export default function WeeklyPlan() {
                     {DAY_LABELS[day]}
                   </div>
                   <div className="text-sm text-slate-600 dark:text-slate-400">
-                    {dayName.split(':')[1]?.trim() || dayName.split(':')[0] || '—'}
+                    {daySchedule?.name || '—'}
                   </div>
                   {dayCardio && (
                     <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
@@ -778,7 +809,7 @@ export default function WeeklyPlan() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {mainExercises.length > 0 ? `${mainExercises.length} exercises` : 'Rest'}
+                    {exercises.length > 0 ? `${exercises.length} exercises` : 'Rest'}
                   </span>
                   {exercises.length > 0 && (
                     <button
