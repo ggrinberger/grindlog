@@ -50,13 +50,46 @@ docker-compose logs -f frontend
 
 # Run database migrations (happens automatically on backend start)
 
-# Run tests
+# Run unit tests
 npm run test --workspace=backend
 npm run test --workspace=frontend
+
+# Run E2E tests (requires app running)
+npm run test:e2e --workspace=frontend
+npm run test:e2e:headed --workspace=frontend  # With browser visible
+npm run test:e2e:ui --workspace=frontend      # Interactive UI mode
 
 # Lint
 npm run lint --workspace=backend
 npm run lint --workspace=frontend
+```
+
+## E2E Testing
+
+End-to-end tests use Playwright and simulate real user interactions.
+
+### Test Files (frontend/e2e/)
+- `01-auth.spec.ts` - Registration, login, logout flows
+- `02-workouts.spec.ts` - Weekly schedule, adding exercises
+- `03-supplements.spec.ts` - Add, edit, log supplements
+- `04-nutrition.spec.ts` - Meal logging, nutrition plans
+- `05-progress.spec.ts` - Body measurements, exercise PRs
+- `06-cardio-routines.spec.ts` - Cardio protocols, daily routines
+- `07-profile-dashboard.spec.ts` - Profile updates, dashboard navigation
+
+### Running E2E Tests Locally
+```bash
+# Ensure app is running
+docker-compose up -d
+
+# Run all E2E tests
+cd frontend && npm run test:e2e
+
+# Run specific test file
+npx playwright test e2e/01-auth.spec.ts
+
+# Debug mode
+npx playwright test --debug
 ```
 
 ## Git Workflow
@@ -117,8 +150,10 @@ The `--auto` flag enables auto-merge once CI passes, avoiding the need to poll f
 ## CI/CD
 
 - GitHub Actions run on PR
-- Must pass: ESLint (frontend + backend), Tests (frontend + backend)
+- Pipeline stages: lint → unit tests → build → E2E tests
+- Must pass: ESLint, unit tests, build, E2E tests
 - Auto-merge available when CI passes
+- E2E test artifacts (screenshots, videos) uploaded on failure
 
 ## Key Features
 
