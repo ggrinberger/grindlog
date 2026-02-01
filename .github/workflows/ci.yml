@@ -85,3 +85,81 @@ jobs:
       
       - name: Build
         run: npm run build
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [build]
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: grindlog
+          POSTGRES_PASSWORD: grindlog
+          POSTGRES_DB: grindlog
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: ./frontend
+      
+      - name: Build frontend
+        run: npm run build --workspace=frontend
+      
+      - name: Start backend server
+        run: npm run dev --workspace=backend &
+        env:
+          DATABASE_URL: postgres://grindlog:grindlog@localhost:5432/grindlog
+          JWT_SECRET: e2e-test-secret-key
+          PORT: 3000
+      
+      - name: Wait for backend
+        run: |
+          for i in {1..30}; do
+            curl -s http://localhost:3000/api/admin/health && break
+            echo "Waiting for backend..."
+            sleep 2
+          done
+      
+      - name: Serve frontend
+        run: npx serve -s dist -l 80 &
+        working-directory: ./frontend
+      
+      - name: Wait for frontend
+        run: |
+          for i in {1..30}; do
+            curl -s http://localhost:80 && break
+            echo "Waiting for frontend..."
+            sleep 2
+          done
+      
+      - name: Run E2E tests
+        run: npm run test:e2e --workspace=frontend
+        env:
+          E2E_BASE_URL: http://localhost:80
+      
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
